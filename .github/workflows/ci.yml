@@ -1,0 +1,82 @@
+name: CI
+
+# Runs on pull requests from forks too, so it is given nothing worth stealing: a
+# read-only token, no secrets, and never `pull_request_target`.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  verify:
+    name: Verify, pack and smoke-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      # Actions are pinned to a commit. A tag can be moved; a commit cannot.
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm setup:react-18
+      # Lint, types, tests, hygiene, build, then both gates. Leaves the tarball in ./artifacts.
+      - run: pnpm verify
+      # Installs that tarball outside the repository, and builds the example app against it.
+      - run: pnpm smoke:example
+      # The release workflow publishes exactly this file, and builds nothing itself.
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: tarball
+          path: artifacts/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  test:
+    name: Tests on Node ${{ matrix.node }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 24]
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@fc06bc1257f339d1d5d8b3a19a8cae5388b55320 # v5.0.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm setup:react-18
+      - run: pnpm test
+
+  contract:
+    name: Contract in step with the published one
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Information, not a gate: the API is allowed to move ahead of the SDK, and a
+    # pull request that fixes a typo should not go red because it did.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+      - run: node scripts/contract-drift.mjs

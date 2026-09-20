@@ -1,0 +1,9 @@
+{
+  "name": "trovy-sdk-react-18-leg",
+  "private": true,
+  "description": "React 18, installed beside the repository's React 19, so the component's tests run on the oldest version the package claims to support. See vitest.config.ts.",
+  "dependencies": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  }
+}

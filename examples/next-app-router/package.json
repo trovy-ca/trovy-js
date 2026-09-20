@@ -1,0 +1,22 @@
+{
+  "name": "trovy-example-next-app-router",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@trovy/sdk": "0.1.0-rc.0",
+    "next": "16.1.6",
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "@types/node": "25.1.0",
+    "@types/react": "19.2.10",
+    "@types/react-dom": "19.2.3",
+    "typescript": "5.9.3"
+  }
+}

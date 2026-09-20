@@ -1,0 +1,58 @@
+name: Contract drift
+
+# Once a day: has the API's published contract moved ahead of the copy this SDK
+# was generated from? If so, one issue says so, and is kept up to date rather
+# than opened again.
+on:
+  schedule:
+    - cron: "17 13 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  drift:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+      - name: Compare, and keep one issue in step with the answer
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -uo pipefail
+          title="The published API contract is ahead of the SDK"
+
+          node scripts/contract-drift.mjs > report.txt 2>&1
+          status=$?
+          cat report.txt
+
+          existing="$(gh issue list --state open --search "in:title \"${title}\"" --json number --jq '.[0].number // empty')"
+
+          case "${status}" in
+            0)
+              if [ -n "${existing}" ]; then
+                gh issue close "${existing}" --comment "The vendored contract matches the published one again."
+              fi
+              ;;
+            1)
+              body="$(printf '`pnpm contract:drift` reports a difference.\n\n```\n%s\n```\n\nReplace `openapi/v1.json` from the API source, run `pnpm codegen`, and release. See RELEASING.md.\n' "$(cat report.txt)")"
+              if [ -n "${existing}" ]; then
+                gh issue edit "${existing}" --body "${body}"
+              else
+                gh issue create --title "${title}" --body "${body}"
+              fi
+              ;;
+            *)
+              # The contract could not be fetched. That says nothing about drift,
+              # so it fails the run and touches no issue.
+              exit "${status}"
+              ;;
+          esac

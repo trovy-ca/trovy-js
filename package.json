@@ -1,0 +1,143 @@
+{
+  "name": "@trovy/sdk",
+  "version": "0.1.0-rc.0",
+  "description": "Trovy loyalty for your own app: a typed server client, the sign-up form as a React component, and the Next.js glue between them",
+  "license": "MIT",
+  "author": "Trovy Inc.",
+  "type": "module",
+  "sideEffects": false,
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/trovy-ca/trovy-js.git"
+  },
+  "homepage": "https://developers.trovy.ca",
+  "bugs": "https://github.com/trovy-ca/trovy-js/issues",
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./widget": {
+      "import": {
+        "types": "./dist/widget/index.d.ts",
+        "default": "./dist/widget/index.js"
+      },
+      "require": {
+        "types": "./dist/widget/index.d.cts",
+        "default": "./dist/widget/index.cjs"
+      }
+    },
+    "./widget/core": {
+      "import": {
+        "types": "./dist/widget/core.d.ts",
+        "default": "./dist/widget/core.js"
+      },
+      "require": {
+        "types": "./dist/widget/core.d.cts",
+        "default": "./dist/widget/core.cjs"
+      }
+    },
+    "./react": {
+      "import": {
+        "types": "./dist/react/index.d.ts",
+        "default": "./dist/react/index.js"
+      },
+      "require": {
+        "types": "./dist/react/index.d.cts",
+        "default": "./dist/react/index.cjs"
+      }
+    },
+    "./next": {
+      "import": {
+        "types": "./dist/next/index.d.ts",
+        "default": "./dist/next/index.js"
+      },
+      "require": {
+        "types": "./dist/next/index.d.cts",
+        "default": "./dist/next/index.cjs"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "trovy",
+    "loyalty",
+    "cashback",
+    "gift-cards",
+    "api-client",
+    "react",
+    "nextjs"
+  ],
+  "scripts": {
+    "codegen": "node scripts/codegen.mjs",
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsup",
+    "lint": "eslint . --max-warnings 0",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "hygiene": "node scripts/check-hygiene.mjs",
+    "verify:dist": "node scripts/verify-dist.mjs",
+    "verify:pack": "node scripts/verify-pack.mjs",
+    "verify": "pnpm lint && pnpm type-check && pnpm test && pnpm hygiene && pnpm build && pnpm verify:dist && pnpm verify:pack",
+    "setup:react-18": "pnpm --dir test/react-18 install --ignore-workspace --frozen-lockfile",
+    "smoke": "node scripts/smoke.mjs",
+    "smoke:example": "node scripts/smoke.mjs --example",
+    "contract:drift": "node scripts/contract-drift.mjs"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "server-only": ">=0.0.1"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "server-only": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "0.18.5",
+    "@eslint/js": "9.39.2",
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/node": "25.1.0",
+    "@types/react": "19.2.10",
+    "@types/react-dom": "19.2.3",
+    "eslint": "9.39.2",
+    "eslint-plugin-react-hooks": "7.0.1",
+    "jsdom": "27.4.0",
+    "openapi-typescript": "7.13.0",
+    "publint": "0.3.24",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "server-only": "0.0.1",
+    "tsup": "8.5.1",
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.54.0",
+    "vitest": "4.1.0"
+  }
+}

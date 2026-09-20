@@ -1,0 +1,17 @@
+node_modules/
+dist/
+coverage/
+artifacts/
+*.tgz
+*.tsbuildinfo
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# The example app is its own project with its own install.
+examples/*/node_modules/
+examples/*/.next/
+examples/*/.data/
+examples/*/next-env.d.ts
+examples/*/package-lock.json

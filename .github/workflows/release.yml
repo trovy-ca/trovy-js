@@ -1,0 +1,82 @@
+name: Release
+
+# Pushing a tag `v<version>` publishes that version to npm.
+#
+# No npm token exists. The publish job proves to npm who it is with a short-lived
+# OpenID Connect identity (npm "trusted publishing"), which npm accepts only from
+# this repository, this workflow file and the `npm` environment. See RELEASING.md.
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+jobs:
+  tag:
+    name: Tag matches package.json
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5.1.0
+        with:
+          persist-credentials: false
+      # Before anyone is asked to approve anything.
+      - run: |
+          version="$(node -p "require('./package.json').version")"
+          if [ "v${version}" != "${GITHUB_REF_NAME}" ]; then
+            echo "::error::The tag is ${GITHUB_REF_NAME} and package.json says ${version}."
+            exit 1
+          fi
+
+  ci:
+    name: CI
+    needs: tag
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci.yml
+
+  publish:
+    name: Publish to npm
+    needs: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # A required reviewer on this environment is the last human check.
+    environment: npm
+    permissions:
+      id-token: write # the OpenID Connect identity npm trusts, and what provenance is signed with
+    steps:
+      # No checkout and no install: this job runs nothing from the repository and
+      # nothing from the registry. It receives one file that CI built and verified,
+      # and hands that file to npm.
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: tarball
+      - name: Publish the verified tarball
+        run: |
+          set -euo pipefail
+
+          # Trusted publishing needs npm 11.5.1 or newer.
+          node -e '
+            const [major, minor, patch] = process.argv[1].split(".").map(Number);
+            const ok = major > 11 || (major === 11 && (minor > 5 || (minor === 5 && patch >= 1)));
+            if (!ok) { console.error("npm " + process.argv[1] + " is too old for trusted publishing"); process.exit(1); }
+          ' "$(npm --version)"
+
+          version="${GITHUB_REF_NAME#v}"
+          file="trovy-sdk-${version}.tgz"
+          test -f "${file}" || { echo "::error::CI did not produce ${file}."; ls -la; exit 1; }
+          sha256sum "${file}"
+
+          # A release candidate must never become what `npm install @trovy/sdk` gives people.
+          case "${version}" in
+            *-*) dist_tag="next" ;;
+            *)   dist_tag="latest" ;;
+          esac
+
+          npm publish "${file}" --access public --tag "${dist_tag}" --provenance

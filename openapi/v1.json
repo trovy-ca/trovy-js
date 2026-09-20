@@ -1,0 +1,2282 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Trovy API",
+    "version": "1",
+    "description": "The Trovy loyalty engine, for a partner's own backend: instant rewards and gift cards behind your own checkout. Trovy handles no payments.\n\n## Authentication\n\nEvery request carries a secret key: `Authorization: Bearer trv_live_…` against production, `Authorization: Bearer trv_test_…` against the sandbox. Keys belong on your server only — never in a mobile app or a web page. Your team creates, rotates and revokes them in the Trovy dashboard.\n\n## Sandbox\n\nYour team makes its own sandbox in the Trovy dashboard (Integrations → Developer API → Create sandbox): a test copy of your business, with its own test keys. `https://api.sandbox.trovy.ca` runs the same API against it. Test keys only work there, and live keys only against production. No text message ever leaves a sandbox: every response that would have sent one carries the rendered message in `sms.preview`. Its sign-up form accepts only fictional phone numbers (any area code, then 555-0100 to 555-0199), so a sandbox can never reach a real person.\n\n## Idempotency\n\nEvery request that changes something takes an `Idempotency-Key` header. Retrying with the same key returns the original result, so a timed-out call can never earn twice or charge a gift card twice. Reusing a key with a different body is refused.\n\n## Errors\n\nErrors are `{ \"error\": \"…\", \"code\": \"…\", \"requestId\": \"…\" }`. `code` is stable and documented on each operation; quote `requestId` when you contact support. A 401 means fix your credentials (rotate the key); a 403 means the key is recognised and something else forbids the call.\n\n## Rate limits\n\nLimits are per key. Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`; a 429 adds `Retry-After`.\n\n## Versioning\n\nThe version is in the path. Changes within `/v1` are additive: new endpoints, new optional fields, new error codes. Anything that would break a working integration ships as `/v2`."
+  },
+  "servers": [
+    {
+      "url": "https://api.sandbox.trovy.ca",
+      "description": "Sandbox — test keys (trv_test_…), no live texts"
+    },
+    {
+      "url": "https://api.trovy.ca",
+      "description": "Production — live keys (trv_live_…)"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Business",
+      "description": "Your business, its program terms and its locations."
+    },
+    {
+      "name": "Customers",
+      "description": "Members of your business, linked through the sign-up widget."
+    },
+    {
+      "name": "Rewards",
+      "description": "Earn on an order, redeem at checkout, adjust on refund."
+    },
+    {
+      "name": "Gift Cards",
+      "description": "Cards you sold: issue, check, redeem, reverse, void."
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A secret key: trv_live_… against production, trv_test_… against the sandbox."
+      }
+    },
+    "schemas": {
+      "BusinessResponse": {
+        "type": "object",
+        "properties": {
+          "business": {
+            "$ref": "#/components/schemas/Business"
+          },
+          "program": {
+            "$ref": "#/components/schemas/Program"
+          }
+        },
+        "required": [
+          "business",
+          "program"
+        ]
+      },
+      "Business": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "clx1business0001"
+          },
+          "name": {
+            "type": "string",
+            "example": "Sunny Threads"
+          },
+          "environment": {
+            "type": "string",
+            "enum": [
+              "sandbox",
+              "live"
+            ],
+            "description": "Which deployment answered. Test keys only ever see `sandbox`."
+          },
+          "timezone": {
+            "type": "string",
+            "example": "America/Toronto",
+            "description": "IANA zone the business reports in."
+          },
+          "currency": {
+            "type": "string",
+            "example": "USD",
+            "description": "ISO 4217 code every `...Cents` field in this API is counted in. One business has one currency and it never changes once it has transacted, so read it once at setup rather than per call."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "environment",
+          "timezone",
+          "currency"
+        ]
+      },
+      "Program": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "example": "Sunny Threads Rewards"
+          },
+          "rewardRateBps": {
+            "type": "integer",
+            "example": 500,
+            "description": "Reward rate in basis points: 500 = 5% of the order."
+          },
+          "capCents": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "example": 2000,
+            "description": "Most a customer's waiting reward can grow to, in cents. `null` means uncapped."
+          },
+          "minRedemptionPurchaseCents": {
+            "type": "integer",
+            "example": 1000,
+            "description": "An order must reach this, in cents, before a reward can be applied to it."
+          },
+          "rewardValidityDays": {
+            "type": "integer",
+            "example": 30,
+            "description": "Days a reward stays redeemable once it becomes usable."
+          },
+          "redemptionDelayDays": {
+            "type": "integer",
+            "example": 1,
+            "description": "Whole days, in your business's timezone, before a newly earned reward can be applied: 0 = right away, 1 = from the next day."
+          },
+          "recurring": {
+            "type": "boolean",
+            "description": "When true, an order that redeems a reward earns again on the remainder."
+          }
+        },
+        "required": [
+          "name",
+          "rewardRateBps",
+          "capCents",
+          "minRedemptionPurchaseCents",
+          "rewardValidityDays",
+          "redemptionDelayDays",
+          "recurring"
+        ],
+        "description": "The active rewards program, or `null` when none is linked to the Developer API yet."
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "string",
+            "example": "Invalid API key."
+          },
+          "code": {
+            "type": "string",
+            "enum": [
+              "API_KEY_MISSING",
+              "API_KEY_INVALID",
+              "API_KEY_REVOKED",
+              "API_KEY_DISABLED",
+              "API_KEY_WRONG_TYPE",
+              "API_NOT_ENABLED",
+              "VALIDATION_ERROR",
+              "NOT_FOUND",
+              "LINK_TOKEN_INVALID",
+              "CUSTOMER_NOT_FOUND",
+              "IDEMPOTENCY_MISMATCH",
+              "DUPLICATE_ORDER",
+              "ACTIVE_REWARD_EXISTS",
+              "NO_ACTIVE_PROGRAM",
+              "FIRST_ORDER_ONLY",
+              "STORE_NOT_FOUND",
+              "REWARD_NOT_FOUND",
+              "REWARD_ALREADY_REDEEMED",
+              "REWARD_EXPIRED",
+              "REWARD_NOT_YET_USABLE",
+              "REWARD_VOIDED",
+              "REWARD_CHANGED",
+              "NOT_OLDEST_REWARD",
+              "MINIMUM_ORDER_NOT_MET",
+              "ORDER_NOT_FOUND",
+              "ORDER_AMBIGUOUS",
+              "NOT_REFUNDABLE",
+              "REFUND_EXCEEDS_REMAINING",
+              "ALREADY_FULLY_REFUNDED",
+              "GIFT_CARDS_NOT_ENABLED",
+              "AMOUNT_OUT_OF_RANGE",
+              "DAILY_CAP_REACHED",
+              "GIFT_CARD_NOT_FOUND",
+              "GIFT_CARD_NOT_REDEEMABLE",
+              "INSUFFICIENT_BALANCE",
+              "NOT_YOUR_GIFT_CARD",
+              "REDEMPTION_NOT_FOUND",
+              "NOT_REVERSIBLE",
+              "EXCEEDS_REVERSIBLE",
+              "RATE_LIMITED",
+              "INTERNAL_ERROR"
+            ],
+            "example": "API_KEY_INVALID",
+            "x-enumDescriptions": {
+              "API_KEY_MISSING": "No `Authorization: Bearer <key>` header was sent.",
+              "API_KEY_INVALID": "The key is malformed, unknown, or minted for the other environment.",
+              "API_KEY_REVOKED": "The key was revoked. Create a new one in the dashboard.",
+              "API_KEY_DISABLED": "Trovy disabled this key. Contact hello@trovy.ca — rotating will not help.",
+              "API_KEY_WRONG_TYPE": "A Shopify or publishable key was sent where a secret key is required.",
+              "API_NOT_ENABLED": "The Developer API is not enabled for this business.",
+              "VALIDATION_ERROR": "The request failed validation; `details` lists the issues.",
+              "NOT_FOUND": "No such route, or no such resource for this business.",
+              "LINK_TOKEN_INVALID": "The link token is unknown, expired, already used, or was issued for another business. The customer verifies again in the widget.",
+              "CUSTOMER_NOT_FOUND": "No member of your business matches — the phone number is not a member's, or the customer id is not one of yours.",
+              "IDEMPOTENCY_MISMATCH": "This `Idempotency-Key` was already used for a request with a different body. Use a new key for a new order event.",
+              "DUPLICATE_ORDER": "An order with this `orderId` is already recorded for your business. Order ids are unique per business.",
+              "ACTIVE_REWARD_EXISTS": "The customer has a usable reward waiting (`details.reward`). An order applies it with `redeemReward` or earns nothing; it cannot earn on top. A reward that is not usable yet never blocks an earn: the order adds to it.",
+              "NO_ACTIVE_PROGRAM": "Your business has no active rewards program linked to the Developer API.",
+              "FIRST_ORDER_ONLY": "The program rewards a customer's first order only, and this customer has already earned.",
+              "STORE_NOT_FOUND": "`storeId` is not one of your active locations (`listStores`).",
+              "REWARD_NOT_FOUND": "No such reward for this customer at your business.",
+              "REWARD_ALREADY_REDEEMED": "The reward was already redeemed.",
+              "REWARD_EXPIRED": "The reward has expired.",
+              "REWARD_NOT_YET_USABLE": "The program holds a newly earned reward back until `details.usableFrom` (a local midnight at your business), so it can't be applied to the order that earned it or to another order that day.",
+              "REWARD_VOIDED": "The reward was cancelled by refunds of the orders that earned it.",
+              "REWARD_CHANGED": "The reward changed between your read and this call (a refund landed). Read it again.",
+              "NOT_OLDEST_REWARD": "Rewards are redeemed oldest first; `details.oldestRewardId` is the one to apply.",
+              "MINIMUM_ORDER_NOT_MET": "The order does not reach the reward's minimum; `details.minimumOrderCents`.",
+              "ORDER_NOT_FOUND": "No order with this `orderId` was recorded through the API for your business.",
+              "ORDER_AMBIGUOUS": "More than one purchase is recorded under this `orderId`. Contact support.",
+              "NOT_REFUNDABLE": "This order cannot be refunded.",
+              "REFUND_EXCEEDS_REMAINING": "`amountCents` is more than what is left to refund; `details.remainingRefundableCents`.",
+              "ALREADY_FULLY_REFUNDED": "The order has already been fully refunded.",
+              "GIFT_CARDS_NOT_ENABLED": "Gift-card issuance is not enabled for your business. Contact Trovy to enable it.",
+              "AMOUNT_OUT_OF_RANGE": "The amount is outside your business's gift-card limits; `details` carries them.",
+              "DAILY_CAP_REACHED": "Issuing this card would pass your daily gift-card limit; `details` carries the cap and what is left. It resets at 00:00 UTC.",
+              "GIFT_CARD_NOT_FOUND": "No gift card with this code or id belongs to your business.",
+              "GIFT_CARD_NOT_REDEEMABLE": "The card is spent out, voided, or not yet active; `details.balanceCents` is what is left.",
+              "INSUFFICIENT_BALANCE": "The card does not hold this much; `details.balanceCents` is what is left.",
+              "NOT_YOUR_GIFT_CARD": "This card was sold by Trovy, not by you, so only Trovy can cancel it.",
+              "REDEMPTION_NOT_FOUND": "No gift-card redemption with this id belongs to your business.",
+              "NOT_REVERSIBLE": "This debit cannot be put back: the card is voided, or the row is itself a reversal.",
+              "EXCEEDS_REVERSIBLE": "More than this debit can still put back; `details.reversibleCents` is the remainder.",
+              "RATE_LIMITED": "Too many requests; wait `Retry-After` seconds.",
+              "INTERNAL_ERROR": "Something failed on our side. Quote `requestId` to support."
+            }
+          },
+          "requestId": {
+            "type": "string",
+            "description": "Identifies this request in Trovy's logs. Quote it to support."
+          },
+          "details": {
+            "description": "Validation issues, when `code` is VALIDATION_ERROR."
+          }
+        },
+        "required": [
+          "error",
+          "code"
+        ]
+      },
+      "StoresResponse": {
+        "type": "object",
+        "properties": {
+          "stores": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Store"
+            }
+          }
+        },
+        "required": [
+          "stores"
+        ]
+      },
+      "Store": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "clx1store00001"
+          },
+          "name": {
+            "type": "string",
+            "example": "Simpson Bay"
+          },
+          "isDefault": {
+            "type": "boolean",
+            "description": "The location orders are attributed to when none is given."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "isDefault"
+        ]
+      },
+      "LinkCustomerResponse": {
+        "type": "object",
+        "properties": {
+          "customer": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "example": "clx1cust00001",
+                "description": "Your customer id for this member — see `Customer`."
+              },
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "example": "Maria"
+              },
+              "isNew": {
+                "type": "boolean",
+                "description": "True when this verification created the trovy account; false when an existing member linked to you."
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "isNew"
+            ]
+          }
+        },
+        "required": [
+          "customer"
+        ]
+      },
+      "LinkCustomerRequest": {
+        "type": "object",
+        "properties": {
+          "linkToken": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "example": "Xm3kQ…",
+            "description": "The one-time token the sign-up widget handed your page in its `trovy:success` message. Valid for five minutes, exchangeable once."
+          }
+        },
+        "required": [
+          "linkToken"
+        ]
+      },
+      "LookupCustomerResponse": {
+        "type": "object",
+        "properties": {
+          "linked": {
+            "type": "boolean",
+            "description": "Whether this member has linked to your business through the sign-up widget. Only a linked member has an id you can act on; for anyone else, show the widget."
+          },
+          "customer": {
+            "$ref": "#/components/schemas/Customer"
+          }
+        },
+        "required": [
+          "linked",
+          "customer"
+        ]
+      },
+      "Customer": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "clx1cust00001",
+            "description": "Your customer id for this member. Store it against your own account record; every rewards and gift-card call takes it. It means nothing at any other business."
+          },
+          "name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "Maria",
+            "description": "First name, as the member gave it."
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "description": "`null` until the member links."
+      },
+      "LookupCustomerRequest": {
+        "type": "object",
+        "properties": {
+          "phone": {
+            "type": "string",
+            "pattern": "^\\+?1?[\\s().-]*[2-9](?:[\\s().-]*\\d){9}$",
+            "example": "+17215550100",
+            "description": "A North American number. Formatting is ignored: `+17215550100`, `17215550100` and `(721) 555-0100` are the same number."
+          }
+        },
+        "required": [
+          "phone"
+        ]
+      },
+      "RewardsResponse": {
+        "type": "object",
+        "properties": {
+          "rewards": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Reward"
+            },
+            "description": "Usable rewards first, then soonest-expiring. Normally zero or one: a customer redeems a usable reward before they earn again."
+          }
+        },
+        "required": [
+          "rewards"
+        ]
+      },
+      "Reward": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "clx1reward0001"
+          },
+          "valueCents": {
+            "type": "integer",
+            "example": 250,
+            "description": "What the reward is worth, in cents. It grows as the customer earns again before redeeming."
+          },
+          "minimumOrderCents": {
+            "type": "integer",
+            "example": 1000,
+            "description": "An order must reach this, in cents, to have the reward applied."
+          },
+          "expiresAt": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "2026-10-12T14:00:00.000Z",
+            "description": "ISO 8601. `null` means it does not expire."
+          },
+          "usableFrom": {
+            "type": "string",
+            "example": "2026-09-16T04:00:00.000Z",
+            "description": "ISO 8601. The first moment the reward can be applied. A program with a redemption delay holds a new reward back until a local midnight at your business, so it can't be spent on the order that earned it."
+          },
+          "usable": {
+            "type": "boolean",
+            "description": "Whether `usableFrom` has passed. Decide at checkout from this flag, not from the list being non-empty: a customer whose only reward is not usable yet earns (`earnReward`), and the order adds to that reward."
+          }
+        },
+        "required": [
+          "id",
+          "valueCents",
+          "minimumOrderCents",
+          "expiresAt",
+          "usableFrom",
+          "usable"
+        ]
+      },
+      "EarnResponse": {
+        "type": "object",
+        "properties": {
+          "replayed": {
+            "type": "boolean",
+            "description": "True when this is the stored result of an earlier call with the same `Idempotency-Key`; nothing was recorded twice."
+          },
+          "customer": {
+            "$ref": "#/components/schemas/Customer"
+          },
+          "order": {
+            "$ref": "#/components/schemas/Order"
+          },
+          "earnedCents": {
+            "type": "integer",
+            "example": 250,
+            "description": "What this order added to the customer's reward, in cents. 0 when the order was too small to earn — rewards round to whole dollars."
+          },
+          "reward": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Reward"
+              },
+              {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "The customer's reward after this order — its full value, not just this order's share. `null` when nothing was earned."
+              }
+            ]
+          },
+          "transactionId": {
+            "type": "string",
+            "example": "clx1tx000001",
+            "description": "Trovy's id for this order. Quote it to support."
+          },
+          "sms": {
+            "$ref": "#/components/schemas/Sms"
+          }
+        },
+        "required": [
+          "replayed",
+          "customer",
+          "order",
+          "earnedCents",
+          "reward",
+          "transactionId",
+          "sms"
+        ]
+      },
+      "Order": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "ORD-10233",
+            "description": "Your order id, as you sent it."
+          },
+          "amountCents": {
+            "type": "integer",
+            "example": 5000
+          }
+        },
+        "required": [
+          "id",
+          "amountCents"
+        ]
+      },
+      "Sms": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "sent",
+              "preview",
+              "failed",
+              "not_sent"
+            ],
+            "description": "`sent`: the customer was texted. `preview`: sandbox — nothing was sent and `preview` holds the text. `failed`: the text could not be sent; the order and reward still stand. `not_sent`: nothing to say (no reward, or a replay)."
+          },
+          "preview": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Sandbox only: the full text the customer would have received."
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "EarnRequest": {
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": "string",
+            "minLength": 1,
+            "example": "clx1cust00001",
+            "description": "The customer id from `linkCustomer`."
+          },
+          "orderId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "example": "ORD-10233",
+            "description": "Your own order id. Unique per business — recording a second order under the same id is refused with `DUPLICATE_ORDER` — and what a refund names later."
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5000000,
+            "example": 5000,
+            "description": "The order total in cents, before any reward is taken off."
+          },
+          "storeId": {
+            "type": "string",
+            "minLength": 1,
+            "example": "clx1store00001",
+            "description": "Which of your locations fulfilled the order (`listStores`). Defaults to your default location. Reporting only — a reward earned at one location is redeemable at any."
+          }
+        },
+        "required": [
+          "customerId",
+          "orderId",
+          "amountCents"
+        ]
+      },
+      "RedeemResponse": {
+        "type": "object",
+        "properties": {
+          "replayed": {
+            "type": "boolean",
+            "description": "True when this is the stored result of an earlier call with the same `Idempotency-Key`; nothing was recorded twice."
+          },
+          "customer": {
+            "$ref": "#/components/schemas/Customer"
+          },
+          "order": {
+            "$ref": "#/components/schemas/Order"
+          },
+          "redeemedCents": {
+            "type": "integer",
+            "example": 250,
+            "description": "What came off the order: the reward's full value, in cents."
+          },
+          "newReward": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/Reward"
+              },
+              {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "description": "On a recurring program, the reward this order earned on what the customer actually paid. Otherwise `null`."
+              }
+            ]
+          },
+          "transactionId": {
+            "type": "string",
+            "example": "clx1tx000001",
+            "description": "Trovy's id for this order. Quote it to support."
+          },
+          "sms": {
+            "$ref": "#/components/schemas/Sms"
+          }
+        },
+        "required": [
+          "replayed",
+          "customer",
+          "order",
+          "redeemedCents",
+          "newReward",
+          "transactionId",
+          "sms"
+        ]
+      },
+      "RedeemRequest": {
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": "string",
+            "minLength": 1,
+            "example": "clx1cust00001",
+            "description": "The customer id from `linkCustomer`."
+          },
+          "rewardId": {
+            "type": "string",
+            "minLength": 1,
+            "example": "clx1reward0001",
+            "description": "The reward to apply, from `listCustomerRewards`."
+          },
+          "orderId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "example": "ORD-10233",
+            "description": "Your own order id. Unique per business — recording a second order under the same id is refused with `DUPLICATE_ORDER` — and what a refund names later."
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5000000,
+            "example": 5000,
+            "description": "The order total in cents, before any reward is taken off."
+          },
+          "storeId": {
+            "type": "string",
+            "minLength": 1,
+            "example": "clx1store00001",
+            "description": "Which of your locations fulfilled the order (`listStores`). Defaults to your default location. Reporting only — a reward earned at one location is redeemable at any."
+          }
+        },
+        "required": [
+          "customerId",
+          "rewardId",
+          "orderId",
+          "amountCents"
+        ]
+      },
+      "RefundResponse": {
+        "type": "object",
+        "properties": {
+          "replayed": {
+            "type": "boolean",
+            "description": "True when this is the stored result of an earlier call with the same `Idempotency-Key`; nothing was recorded twice."
+          },
+          "refund": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "example": "clx1refund0001"
+              },
+              "orderId": {
+                "type": "string",
+                "example": "ORD-10233"
+              },
+              "amountCents": {
+                "type": "integer",
+                "example": 2000
+              },
+              "rewardReversedCents": {
+                "type": "integer",
+                "example": 100,
+                "description": "Reward value taken back from the customer, in cents, in proportion to the refund. 0 when there was nothing live to take back — see `rewardAdjustment`."
+              },
+              "createdAt": {
+                "type": "string",
+                "example": "2026-09-12T14:00:00.000Z"
+              }
+            },
+            "required": [
+              "id",
+              "orderId",
+              "amountCents",
+              "rewardReversedCents",
+              "createdAt"
+            ]
+          },
+          "order": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "example": "ORD-10233"
+              },
+              "amountCents": {
+                "type": "integer",
+                "example": 5000,
+                "description": "The order total as recorded."
+              },
+              "paidCents": {
+                "type": "integer",
+                "example": 4750,
+                "description": "What the customer actually paid: the total less any reward applied."
+              },
+              "refundedCents": {
+                "type": "integer",
+                "example": 2000,
+                "description": "Refunded so far, this call included."
+              },
+              "remainingRefundableCents": {
+                "type": "integer",
+                "example": 2750
+              },
+              "fullyRefunded": {
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "amountCents",
+              "paidCents",
+              "refundedCents",
+              "remainingRefundableCents",
+              "fullyRefunded"
+            ]
+          },
+          "reward": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string",
+                "example": "active",
+                "description": "`active`, `redeemed`, `expired` or `voided`."
+              },
+              "valueCents": {
+                "type": "integer"
+              },
+              "expiresAt": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "status",
+              "valueCents",
+              "expiresAt"
+            ],
+            "description": "The reward the order earned, after this refund. `null` when the order earned none."
+          },
+          "rewardAdjustment": {
+            "type": "string",
+            "enum": [
+              "applied",
+              "nothing_earned",
+              "already_reversed",
+              "reward_redeemed",
+              "reward_expired",
+              "reward_voided",
+              "reward_missing"
+            ],
+            "description": "`applied`: the live reward was reduced by `rewardReversedCents`. `nothing_earned`: the order earned no reward. `already_reversed`: earlier refunds already took back all it earned. `reward_redeemed` / `reward_expired` / `reward_voided` / `reward_missing`: the reward is no longer live, so nothing was taken back."
+          },
+          "sms": {
+            "$ref": "#/components/schemas/Sms"
+          }
+        },
+        "required": [
+          "replayed",
+          "refund",
+          "order",
+          "reward",
+          "rewardAdjustment",
+          "sms"
+        ]
+      },
+      "RefundRequest": {
+        "type": "object",
+        "properties": {
+          "orderId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "example": "ORD-10233",
+            "description": "The order you refunded, as you recorded it with `earnReward` or `redeemReward`."
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5000000,
+            "example": 2000,
+            "description": "What you refunded the customer, in cents. Partial refunds are fine; across calls the total can never exceed what they paid."
+          }
+        },
+        "required": [
+          "orderId",
+          "amountCents"
+        ]
+      },
+      "GiftCardResponse": {
+        "type": "object",
+        "properties": {
+          "replayed": {
+            "type": "boolean",
+            "description": "True when this is the stored result of an earlier call with the same `Idempotency-Key`; nothing was recorded twice."
+          },
+          "card": {
+            "$ref": "#/components/schemas/GiftCard"
+          }
+        },
+        "required": [
+          "replayed",
+          "card"
+        ]
+      },
+      "GiftCard": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "example": "clx1card00001",
+            "description": "Trovy's id for the card. A void names it."
+          },
+          "code": {
+            "type": "string",
+            "example": "TROV-7Q4M-8KP2"
+          },
+          "faceValueCents": {
+            "type": "integer",
+            "example": 5000,
+            "description": "What the card was sold for."
+          },
+          "balanceCents": {
+            "type": "integer",
+            "example": 5000,
+            "description": "What is left to spend."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "depleted",
+              "voided"
+            ],
+            "description": "`active`: spendable. `depleted`: spent out, and it can come back to `active` if a redemption is reversed. `voided`: cancelled, never spendable again."
+          },
+          "externalRef": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "ORD-10233",
+            "description": "Your own reference, as you sent it."
+          },
+          "recipientName": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "example": "Ana"
+          },
+          "createdAt": {
+            "type": "string",
+            "example": "2026-09-12T14:00:00.000Z"
+          }
+        },
+        "required": [
+          "id",
+          "code",
+          "faceValueCents",
+          "balanceCents",
+          "status",
+          "externalRef",
+          "recipientName",
+          "createdAt"
+        ]
+      },
+      "CreateGiftCardRequest": {
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": "string",
+            "minLength": 1,
+            "example": "clx1cust00001",
+            "description": "The buyer — a member of your business, from `linkCustomer`. A card always has a buyer on record."
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5000000,
+            "example": 5000,
+            "description": "What the buyer paid you, in cents. Your business's limits apply."
+          },
+          "externalRef": {
+            "type": "string",
+            "maxLength": 64,
+            "example": "ORD-10233",
+            "description": "Your own reference for the sale, carried on the card."
+          },
+          "recipientName": {
+            "type": "string",
+            "maxLength": 100,
+            "example": "Ana"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 500,
+            "description": "A note from the buyer to the recipient."
+          }
+        },
+        "required": [
+          "customerId",
+          "amountCents"
+        ]
+      },
+      "LookupGiftCardResponse": {
+        "type": "object",
+        "properties": {
+          "card": {
+            "$ref": "#/components/schemas/GiftCard"
+          },
+          "issuedByYou": {
+            "type": "boolean",
+            "description": "True when you sold this card. A card Trovy sold is still redeemable at your checkout; only you can void your own."
+          }
+        },
+        "required": [
+          "card",
+          "issuedByYou"
+        ]
+      },
+      "LookupGiftCardRequest": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "example": "TROV-7Q4M-8KP2",
+            "description": "The code on the card. Case is ignored."
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "RedeemGiftCardResponse": {
+        "type": "object",
+        "properties": {
+          "replayed": {
+            "type": "boolean",
+            "description": "True when this is the stored result of an earlier call with the same `Idempotency-Key`; nothing was recorded twice."
+          },
+          "redemptionId": {
+            "type": "string",
+            "example": "clx1red000001",
+            "description": "The debit. `reverseGiftCardRedemption` names this id — a code never identifies a debit."
+          },
+          "redeemedCents": {
+            "type": "integer",
+            "example": 2500
+          },
+          "balanceCents": {
+            "type": "integer",
+            "example": 2500,
+            "description": "What is left after this debit."
+          },
+          "depleted": {
+            "type": "boolean",
+            "description": "True when the card is now spent out."
+          }
+        },
+        "required": [
+          "replayed",
+          "redemptionId",
+          "redeemedCents",
+          "balanceCents",
+          "depleted"
+        ]
+      },
+      "RedeemGiftCardRequest": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32,
+            "example": "TROV-7Q4M-8KP2",
+            "description": "The code on the card. Case is ignored."
+          },
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5000000,
+            "example": 2500,
+            "description": "What to take off the card, in cents. Partial is fine."
+          },
+          "externalRef": {
+            "type": "string",
+            "maxLength": 64,
+            "example": "ORD-10244",
+            "description": "The order you are settling, carried on the ledger row."
+          }
+        },
+        "required": [
+          "code",
+          "amountCents"
+        ]
+      },
+      "ReverseRedemptionResponse": {
+        "type": "object",
+        "properties": {
+          "replayed": {
+            "type": "boolean",
+            "description": "True when this is the stored result of an earlier call with the same `Idempotency-Key`; nothing was recorded twice."
+          },
+          "reversalId": {
+            "type": "string",
+            "example": "clx1rev000001",
+            "description": "The reversal row. It cannot itself be reversed."
+          },
+          "redemptionId": {
+            "type": "string",
+            "example": "clx1red000001"
+          },
+          "reversedCents": {
+            "type": "integer",
+            "example": 2500,
+            "description": "What went back onto the card."
+          },
+          "balanceCents": {
+            "type": "integer",
+            "example": 5000,
+            "description": "The card's balance after the reversal."
+          }
+        },
+        "required": [
+          "replayed",
+          "reversalId",
+          "redemptionId",
+          "reversedCents",
+          "balanceCents"
+        ]
+      },
+      "ReverseRedemptionRequest": {
+        "type": "object",
+        "properties": {
+          "amountCents": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 5000000,
+            "example": 2500,
+            "description": "How much to put back. Defaults to everything this debit can still restore."
+          },
+          "externalRef": {
+            "type": "string",
+            "maxLength": 64,
+            "example": "REF-551",
+            "description": "Your refund's reference, carried on the reversal row."
+          }
+        }
+      },
+      "VoidGiftCardResponse": {
+        "type": "object",
+        "properties": {
+          "card": {
+            "$ref": "#/components/schemas/GiftCard"
+          },
+          "alreadyVoided": {
+            "type": "boolean",
+            "description": "True when the card was already void; nothing changed."
+          }
+        },
+        "required": [
+          "card",
+          "alreadyVoided"
+        ]
+      }
+    },
+    "parameters": {}
+  },
+  "paths": {
+    "/v1/business": {
+      "get": {
+        "operationId": "getBusiness",
+        "tags": [
+          "Business"
+        ],
+        "summary": "Your business and its active rewards program",
+        "description": "Use it to confirm a key is wired to the business you expect, and to read the program terms your checkout applies: the rate, the cap, and the minimum order a reward can be applied to.",
+        "responses": {
+          "200": {
+            "description": "The business behind the key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BusinessResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/stores": {
+      "get": {
+        "operationId": "listStores",
+        "tags": [
+          "Business"
+        ],
+        "summary": "Your locations",
+        "description": "Active locations, for attributing an order to the one that fulfilled it. Attribution is reporting only — a reward can be earned at one location and redeemed at another.",
+        "responses": {
+          "200": {
+            "description": "Active locations, oldest first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoresResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/customers/link": {
+      "post": {
+        "operationId": "linkCustomer",
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Exchange a sign-up widget token for a customer id",
+        "description": "When the widget's `trovy:success` message hands your page a `linkToken`, post it here from your server. The answer is the customer id you store against your own account record and pass to every rewards and gift-card call. A token is valid for five minutes and can be exchanged once; if your exchange fails or times out, have the customer verify again — their membership already exists, so it takes seconds.",
+        "x-trovy-idempotency-exempt": "A link token is single-use by itself: a retry answers 404 and the member verifies again.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkCustomerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The member behind the token, as your business knows them.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LinkCustomerResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/customers/lookup": {
+      "post": {
+        "operationId": "lookupCustomer",
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Find a member of your business by phone number",
+        "description": "Tells you whether a phone number belongs to a member of your business, and whether that member has linked to you through the sign-up widget. Only a linked member has an id you can act on; for anyone else, show the widget. Non-members are a 404, so this is also how you decide whether to say \"welcome back\". Limited to 120 calls a minute per key.",
+        "x-trovy-idempotency-exempt": "A read. It takes a POST only so the phone number travels in the body, never in a URL.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LookupCustomerRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A member of your business.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LookupCustomerResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/customers/{id}/rewards": {
+      "get": {
+        "operationId": "listCustomerRewards",
+        "tags": [
+          "Rewards"
+        ],
+        "summary": "A customer's rewards waiting to be redeemed",
+        "description": "The customer's rewards at your business: usable ones first, then soonest-expiring. Normally zero or one: a customer redeems a usable reward before they earn again, and a new qualifying order grows the reward they already have. Call it when the customer reaches checkout: apply a reward with `redeemReward` when it is `usable`; otherwise record the order with `earnReward`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "clx1cust00001",
+              "description": "The customer id from `linkCustomer`."
+            },
+            "required": true,
+            "description": "The customer id from `linkCustomer`.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The customer's live rewards.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RewardsResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/earn": {
+      "post": {
+        "operationId": "earnReward",
+        "tags": [
+          "Rewards"
+        ],
+        "summary": "Record an order and earn the customer a reward",
+        "description": "Call it once the order is paid. The reward is the program's rate of the order total, rounded to whole dollars, so small orders can earn nothing (`earnedCents: 0`) — that is still a recorded order, not an error. A customer with a usable reward waiting cannot earn again until it is redeemed: the answer is 409 `ACTIVE_REWARD_EXISTS` with the reward in `details`, and your checkout should offer to apply it (`redeemReward`) instead. A reward the program is still holding back (`usable: false`) doesn't block: the order adds to it. Retrying with the same `Idempotency-Key` returns the original result with `replayed: true`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.-]+$",
+              "example": "order-10233-earn",
+              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
+            },
+            "required": true,
+            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
+            "in": "header",
+            "name": "idempotency-key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EarnRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored result of an earlier call with this Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EarnResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The order was recorded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EarnResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/redeem": {
+      "post": {
+        "operationId": "redeemReward",
+        "tags": [
+          "Rewards"
+        ],
+        "summary": "Apply a customer's reward to an order",
+        "description": "Take `redeemedCents` off the order, then call this once the order is paid. The order must reach the reward's `minimumOrderCents`. On a recurring program the order also earns a new reward on what the customer actually paid (`newReward`). Rewards are redeemed oldest first. A reward the program is still holding back (`usable: false`) is refused with `REWARD_NOT_YET_USABLE`. Retrying with the same `Idempotency-Key` returns the original result with `replayed: true`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.-]+$",
+              "example": "order-10233-earn",
+              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
+            },
+            "required": true,
+            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
+            "in": "header",
+            "name": "idempotency-key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedeemRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored result of an earlier call with this Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RedeemResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The reward was applied and the order recorded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RedeemResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/refunds": {
+      "post": {
+        "operationId": "createRefund",
+        "tags": [
+          "Rewards"
+        ],
+        "summary": "Record a refund and adjust the reward it earned",
+        "description": "Call it after you refund the customer, in full or in part; the total across calls can never exceed what they paid. The reward the order earned shrinks in proportion while it is still live — a reward already redeemed, expired or cancelled is left alone, and `rewardAdjustment` says which. Refunding an order that redeemed a reward never reinstates that reward; only the new reward the order earned is reduced. Retrying with the same `Idempotency-Key` returns the original result.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.-]+$",
+              "example": "order-10233-earn",
+              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
+            },
+            "required": true,
+            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
+            "in": "header",
+            "name": "idempotency-key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefundRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The stored result of an earlier call with this Idempotency-Key.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The refund was recorded.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefundResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/gift-cards": {
+      "post": {
+        "operationId": "createGiftCard",
+        "tags": [
+          "Gift Cards"
+        ],
+        "summary": "Issue a gift card you have been paid for",
+        "description": "Call it once the buyer has paid you. The card comes back active and spendable immediately — you hold the money, so there is nothing for Trovy to wait for. The buyer must be a member of your business, so the card has an owner on record. Your business has a daily issuance limit; going past it answers 409 `DAILY_CAP_REACHED` with what is left. Two issuances at your business at the same instant do not queue: one may answer 429 `RATE_LIMITED` with `Retry-After`, having issued nothing — send it again with the same `Idempotency-Key`. Retrying with the same `Idempotency-Key` returns the same card.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.-]+$",
+              "example": "order-10233-earn",
+              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
+            },
+            "required": true,
+            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
+            "in": "header",
+            "name": "idempotency-key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateGiftCardRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The card an earlier call with this Idempotency-Key issued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GiftCardResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The card, active.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GiftCardResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/gift-cards/lookup": {
+      "post": {
+        "operationId": "lookupGiftCard",
+        "tags": [
+          "Gift Cards"
+        ],
+        "summary": "Check a card's balance",
+        "description": "What the customer can still spend, before you take anything off. A card of another business is simply not found. `issuedByYou` is false for a card Trovy's own storefront sold: it spends at your checkout exactly the same, but only the seller can cancel it.",
+        "x-trovy-idempotency-exempt": "A read. It takes a POST so the card's code travels in the body, never in a URL.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LookupGiftCardRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The card.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LookupGiftCardResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/gift-cards/redeem": {
+      "post": {
+        "operationId": "redeemGiftCard",
+        "tags": [
+          "Gift Cards"
+        ],
+        "summary": "Take an amount off a gift card",
+        "description": "Call it **before** you capture payment for the order: the card is the customer's money, and a debit you cannot collect against is worse than a declined order. Partial amounts are fine. Keep the `redemptionId` — a refund later puts the money back by naming it. Retrying with the same `Idempotency-Key` returns the original debit without taking anything more.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.-]+$",
+              "example": "order-10233-earn",
+              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
+            },
+            "required": true,
+            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
+            "in": "header",
+            "name": "idempotency-key"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RedeemGiftCardRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The debit an earlier call with this Idempotency-Key made.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RedeemGiftCardResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The debit.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RedeemGiftCardResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/gift-cards/redemptions/{id}/reverse": {
+      "post": {
+        "operationId": "reverseGiftCardRedemption",
+        "tags": [
+          "Gift Cards"
+        ],
+        "summary": "Put a gift-card debit back",
+        "description": "When you refund an order you settled against a card, or the order failed after you debited it, this returns the money to the card. Partial and repeatable up to what the debit took; asking for more answers 409 `EXCEEDS_REVERSIBLE` with what is left. A card that was spent out comes back to `active`. A voided card is never restored, and a reversal cannot itself be reversed. Only a debit you made through the API can be put back; any other redemption id answers 404 `REDEMPTION_NOT_FOUND`.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "clx1red000001",
+              "description": "The `redemptionId` from `redeemGiftCard`."
+            },
+            "required": true,
+            "description": "The `redemptionId` from `redeemGiftCard`.",
+            "name": "id",
+            "in": "path"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9_.-]+$",
+              "example": "order-10233-earn",
+              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
+            },
+            "required": true,
+            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
+            "in": "header",
+            "name": "idempotency-key"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReverseRedemptionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The reversal an earlier call with this Idempotency-Key made.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReverseRedemptionResponse"
+                }
+              }
+            }
+          },
+          "201": {
+            "description": "The reversal.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReverseRedemptionResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/gift-cards/{id}/void": {
+      "post": {
+        "operationId": "voidGiftCard",
+        "tags": [
+          "Gift Cards"
+        ],
+        "summary": "Cancel a gift card you issued",
+        "description": "Stops the card being spent — for a sale you cancelled, or a card issued in error. The balance is left on the record, because you hold the buyer's money and refunding them is yours to do; Trovy only stops the card. You can only void a card you issued. Voiding twice is safe and changes nothing.",
+        "x-trovy-idempotency-exempt": "Voiding is idempotent by nature: the card is either void or it now is.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "example": "clx1card00001",
+              "description": "The card's `id`. Not its code — a code is a secret and never goes in a URL."
+            },
+            "required": true,
+            "description": "The card's `id`. Not its code — a code is a secret and never goes in a URL.",
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The card, void.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VoidGiftCardResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "See `code`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "webhooks": {}
+}
