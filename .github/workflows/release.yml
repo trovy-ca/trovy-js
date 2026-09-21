@@ -79,4 +79,6 @@ jobs:
             *)   dist_tag="latest" ;;
           esac
 
-          npm publish "${file}" --access public --tag "${dist_tag}" --provenance
+          # "./": npm reads a path with a slash and no leading dot as a GitHub "user/repo".
+          # A bare file name happens to parse as a file; this does not rely on that.
+          npm publish "./${file}" --access public --tag "${dist_tag}" --provenance

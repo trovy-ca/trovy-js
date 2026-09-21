@@ -81,7 +81,8 @@ describe("the publish job", () => {
   it("publishes the tarball CI verified, by name, and only after CI", () => {
     expect(publish).toContain("needs: ci");
     expect(publish).toContain("actions/download-artifact@");
-    expect(publish).toMatch(/npm publish "\$\{file\}"/);
+    // With the leading "./": `npm publish dir/x.tgz` is read as the GitHub repository dir/x.tgz.
+    expect(publish).toMatch(/npm publish "\.\/\$\{file\}"/);
   });
 
   it("waits for a person, and is the only job that can sign", () => {

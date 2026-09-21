@@ -8,6 +8,14 @@ contain a breaking change, and it will be called out here.
 `@trovy/sdk/widget/core` and `createTrovySignup` exist for Trovy's own builds and
 are not covered by semver.
 
+## 0.1.0-rc.1
+
+No changes to the package. Proves the automated release pipeline.
+
+## 0.1.0-rc.1
+
+No changes to the package. Proves the automated release pipeline.
+
 ## 0.1.0-rc.0
 
 First release candidate, published under the `next` tag. The API contract is

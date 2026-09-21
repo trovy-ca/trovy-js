@@ -85,7 +85,9 @@ Done once, by an owner of the npm organisation and the GitHub repository.
 2. **The first version is published by hand**, because a trusted publisher can
    only be attached to a package that exists. From a clean clone:
    `pnpm install && pnpm setup:react-18 && pnpm verify`, then
-   `npm publish artifacts/trovy-sdk-<version>.tgz --access public --tag next`.
+   `npm publish ./artifacts/trovy-sdk-<version>.tgz --access public --tag next`.
+   The leading `./` matters: without it npm reads `artifacts/…` as a GitHub
+   `user/repo` and tries to clone it.
 3. **Attach the trusted publisher** in the package's settings on npmjs.com:
    organisation `trovy-ca`, repository `trovy-js`, workflow `release.yml`,
    environment `npm`. Then set publishing access to "Require two-factor
