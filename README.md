@@ -25,14 +25,17 @@ and is safe in a page: the form refuses anything else.
 
 ## Next.js in three steps
 
-You need a Trovy business with the Developer API switched on, and both keys from
-its dashboard. Start with the **test** pair: a test key reaches the sandbox, sends
-no real texts, and accepts the fictional numbers listed in the
-[docs](https://developers.trovy.ca/guides/customers).
+Start in a sandbox. In your Trovy dashboard open Integrations → Developer API and
+press **Create sandbox**; the sandbox's own Developer API page is where you create
+a test secret key and a test publishable key. Nothing needs switching on first. A
+test key reaches the sandbox, sends no real texts, and accepts only the fictional
+numbers listed in the [docs](https://developers.trovy.ca/guides/sandbox). Live
+keys come later, from your real business, once its owner switches the Developer API
+on there.
 
 **1. Keys.** In the dashboard, add your site's origin (`https://shop.example`,
 and `http://localhost:3000` for development) to the publishable key's allowed
-origins. Then:
+origins, and save the list. A key with no origins loads nowhere. Then:
 
 ```bash
 # .env.local
@@ -59,17 +62,32 @@ export const POST = createLinkHandler({
 });
 ```
 
-**3. The form.** Anywhere in a page. It is a Client Component already, so a
-Server Component can render it directly.
+**3. The form.** It is a Client Component already, so a Server Component can
+render `<TrovySignup>` directly, as long as it passes no callbacks. A callback such
+as `onLinked` is a function, and a Server Component cannot hand a function to a
+Client Component: Next.js answers the page with "Event handlers cannot be passed to
+Client Component props". So put the form in a small Client Component of your own
+and render that from any page:
 
 ```tsx
+// app/join-rewards.tsx
+"use client";
+
+import { useRouter } from "next/navigation";
 import { TrovySignup } from "@trovy/sdk/react";
 
-<TrovySignup
-  publishableKey={process.env.NEXT_PUBLIC_TROVY_PUBLISHABLE_KEY!}
-  linkUrl="/api/trovy/link"
-  onLinked={({ name }) => router.refresh()}
-/>;
+export function JoinRewards() {
+  const router = useRouter();
+
+  return (
+    <TrovySignup
+      publishableKey={process.env.NEXT_PUBLIC_TROVY_PUBLISHABLE_KEY!}
+      linkUrl="/api/trovy/link"
+      // The route has saved the link by now: re-render the page, which finds it.
+      onLinked={() => router.refresh()}
+    />
+  );
+}
 ```
 
 That is the whole integration. The customer types a phone number and a texted
@@ -86,6 +104,9 @@ await trovy.rewards.earn(
   { idempotencyKey: order.id }
 );
 ```
+
+Earn once the payment has succeeded. A customer with a usable reward waiting
+redeems it instead: see [Redeem on the next one](#redeem-on-the-next-one).
 
 A complete app is in [`examples/next-app-router`](./examples/next-app-router).
 
@@ -190,6 +211,21 @@ It is a web-standard `(Request) => Promise<Response>` and runs on the Node and
 edge runtimes alike. Missing `getUser` or `onLinked` throws when the module loads,
 where your build shows it.
 
+`@trovy/sdk/next` imports `server-only`, so it loads only under the
+`react-server` condition Next.js gives your route, and importing it from a Client
+Component fails the build instead of shipping your key's code path to a browser.
+Anywhere else the import fails on purpose: `Cannot find package 'server-only'`, or,
+once that is installed, "This module cannot be imported from a Client Component
+module". To test your route with Vitest, install `server-only` as a dev dependency
+and give those tests the same condition:
+
+```ts
+// vitest.config.ts
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({ ssr: { resolve: { conditions: ["react-server"] } } });
+```
+
 - **Make `onLinked` idempotent.** A customer who verifies twice links twice, with
   the same `customer.id`.
 - **Do not silently overwrite a different id.** If this user already has another
@@ -266,6 +302,9 @@ console.log(business.name, business.currency); // "Sunny Threads" "CAD"
 
 ### Earn on a paid order
 
+Call it after the payment succeeds: an earn on an order that never completes is a
+reward given away.
+
 ```ts
 const earn = await trovy.rewards.earn(
   {
@@ -281,25 +320,50 @@ console.log(earn.earnedCents, earn.reward?.valueCents);
 
 ### Redeem on the next one
 
-`reward` is `null` when the order was too small to earn a whole dollar, so check it
-rather than asserting it:
+`reward` is `null` when the order was too small to earn a whole dollar (the order
+is still recorded, with `earnedCents: 0`), so check it rather than asserting it.
+
+An order either earns or redeems, never both, and an earn for a customer with a
+usable reward waiting is refused with `409 ACTIVE_REWARD_EXISTS`. So at checkout,
+read the customer's rewards first and let them decide which call to make:
 
 ```ts
-if (!earn.reward) return; // nothing to redeem yet
+const { rewards } = await trovy.rewards.list(user.trovyCustomerId);
+const next = rewards[0]; // usable rewards list first, oldest first
 
-const redeem = await trovy.rewards.redeem(
-  {
-    customerId: user.trovyCustomerId,
-    rewardId: earn.reward.id,
-    orderId: "ORD-10456",
-    amountCents: 4200,
-  },
-  { idempotencyKey: "ORD-10456" }
-);
+if (next?.usable && order.totalCents >= next.minimumOrderCents) {
+  // Take the reward off and capture the rest FIRST. A redeemed reward is never
+  // handed back, so redeeming ahead of a capture that then fails would cost the
+  // customer their reward.
+  await capturePayment(order.totalCents - next.valueCents);
+  const redeem = await trovy.rewards.redeem(
+    {
+      customerId: user.trovyCustomerId,
+      rewardId: next.id,
+      orderId: order.id,
+      amountCents: order.totalCents, // the full total, before the reward
+    },
+    { idempotencyKey: order.id }
+  );
+  // On a recurring program, what the customer paid may have earned the next one.
+  console.log(redeem.redeemedCents, redeem.newReward?.valueCents);
+} else if (next?.usable) {
+  // Below the reward's minimum: the reward waits, and this order records nothing.
+  await capturePayment(order.totalCents);
+} else {
+  // No reward, or one that is not usable yet (the order adds to it).
+  await capturePayment(order.totalCents);
+  await trovy.rewards.earn(
+    { customerId: user.trovyCustomerId, orderId: order.id, amountCents: order.totalCents },
+    { idempotencyKey: order.id }
+  );
+}
 ```
 
-Redeem **before** you capture payment: the response tells you how much came off,
-and the amount you charge is yours to compute from it.
+Capture first, then tell Trovy, the same order as an earn. If the redeem is
+refused after you have captured (the reward expired in the last minute, say), the
+customer still has their reward and you have given one discount: log it rather
+than reaching for a different reward.
 
 ### Refund
 
