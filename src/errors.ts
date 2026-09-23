@@ -37,7 +37,7 @@ export class TrovyError extends Error {
   /**
    * Machine-readable detail, when the API sends some: the failing fields on a 400,
    * and on several 409s the figure to act on (`minimumOrderCents`,
-   * `remainingRefundableCents`, `balanceCents`, the waiting `reward`).
+   * `remainingRefundableCents`, the waiting `reward`).
    */
   readonly details: unknown;
   /**

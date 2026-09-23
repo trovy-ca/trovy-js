@@ -13,7 +13,7 @@ you use the component.
 
 | Import | Runs | What it is |
 | --- | --- | --- |
-| `@trovy/sdk` | server | The API client: customers, rewards, gift cards. Takes your **secret** key. |
+| `@trovy/sdk` | server | The API client: customers and rewards. Takes your **secret** key. |
 | `@trovy/sdk/react` | browser | `<TrovySignup>`, the sign-up form as a React component. Takes your **publishable** key. |
 | `@trovy/sdk/next` | server | `createLinkHandler`, the route that joins the two. |
 | `@trovy/sdk/widget` | browser | `mount`, the same form without a framework. |
@@ -329,13 +329,14 @@ read the customer's rewards first and let them decide which call to make:
 
 ```ts
 const { rewards } = await trovy.rewards.list(user.trovyCustomerId);
-const next = rewards[0]; // usable rewards list first, oldest first
+const next = rewards[0]; // usable ones first, then the soonest to expire
 
 if (next?.usable && order.totalCents >= next.minimumOrderCents) {
   // Take the reward off and capture the rest FIRST. A redeemed reward is never
   // handed back, so redeeming ahead of a capture that then fails would cost the
-  // customer their reward.
-  await capturePayment(order.totalCents - next.valueCents);
+  // customer their reward. A reward is used whole: on an order worth less than it,
+  // the rest is forfeited.
+  await capturePayment(Math.max(0, order.totalCents - next.valueCents));
   const redeem = await trovy.rewards.redeem(
     {
       customerId: user.trovyCustomerId,
@@ -361,25 +362,31 @@ if (next?.usable && order.totalCents >= next.minimumOrderCents) {
 ```
 
 Capture first, then tell Trovy, the same order as an earn. If the redeem is
-refused after you have captured (the reward expired in the last minute, say), the
-customer still has their reward and you have given one discount: log it rather
-than reaching for a different reward.
+refused after you have captured, you have given one discount. On
+`MINIMUM_ORDER_NOT_MET`, `REWARD_NOT_YET_USABLE` or `REWARD_CHANGED` the customer
+still has the reward; on `REWARD_EXPIRED` or `REWARD_ALREADY_REDEEMED` it is gone.
+Either way, do not reach for a different reward. The [rewards
+guide](https://developers.trovy.ca/guides/rewards#at-checkout) covers the rest of
+checkout: what the amount should include, and orders that change after payment.
 
 ### Refund
 
 ```ts
 await trovy.rewards.refund(
   { orderId: "ORD-10233", amountCents: 5000 },
-  { idempotencyKey: "refund-ORD-10233" }
+  // The refund's own id, never the order's key: keyed by the order, a second
+  // partial refund of the same amount would replay the first and change nothing.
+  { idempotencyKey: refund.id }
 );
 ```
 
 ### Idempotency
 
-Every write that moves money takes an `Idempotency-Key`. Supply your own — **your
-order id is the right choice** — so that a retry from a *different process* (a
-redeployed worker, a queue redelivery, a user double-tapping Pay) replays the first
-result instead of applying a second reward.
+Every write that moves money takes an `Idempotency-Key`. Supply your own: **the id
+your system already has for the event**, your order id for an earn or redeem and your
+refund's own id for a refund. Then a retry from a *different process* (a redeployed
+worker, a queue redelivery, a user double-tapping Pay) replays the first result
+instead of applying it twice.
 
 Keys must be 1–128 characters of letters, digits, `.`, `_` or `-`. If your order
 ids look like `#1001` or `ORD/2026/01`, strip or translate the rest — the SDK
@@ -465,11 +472,6 @@ conversion.
 | `rewards.earn(body, opts)` | Record a paid order and earn |
 | `rewards.redeem(body, opts)` | Apply a reward to an order |
 | `rewards.refund(body, opts)` | Reverse an order and claw the reward back |
-| `giftCards.create(body, opts)` | Issue a card you sold |
-| `giftCards.lookup(body)` | Balance and status by code |
-| `giftCards.redeem(body, opts)` | Spend against a card |
-| `giftCards.reverseRedemption(id, body, opts)` | Put a debit back |
-| `giftCards.void(id)` | Void a card you issued |
 
 Every request and response type is generated from the same OpenAPI document the
 API serves, so what your editor shows is what goes over the wire. The schemas are

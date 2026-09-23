@@ -205,6 +205,11 @@ export class Trovy {
       this.#call("createRefund", body, undefined, options),
   };
 
+  /**
+   * @experimental Gift cards are not generally available yet: Trovy switches them
+   * on per business, and until then these calls are refused. Not covered by semver
+   * until they launch, and left out of the README until then.
+   */
   readonly giftCards = {
     create: (body: Payload<"createGiftCard">, options?: RequestOptions) =>
       this.#call("createGiftCard", body, undefined, options),

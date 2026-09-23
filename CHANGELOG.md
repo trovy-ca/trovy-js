@@ -10,6 +10,19 @@ are not covered by semver.
 
 ## Unreleased
 
+### Changed
+
+- Gift cards are not generally available yet, so the README no longer lists them and
+  the package's keywords no longer name them. `giftCards` stays on the client, marked
+  `@experimental`: Trovy switches gift cards on per business, and they are not covered
+  by semver until they launch.
+- The README keys a refund by the refund's own id. Keyed by its order, as it was, a
+  second partial refund of the same amount replayed the first and changed nothing.
+  The redeem example no longer captures a negative amount on an order worth less than
+  the reward, and says which refusals after capture leave the customer their reward.
+- `pnpm contract:drift` compares with the API's own contract. The docs site's copy
+  leaves out features that have not launched, so it would never match.
+
 ### Fixed
 
 - `rewards.earn()`'s `reward` and `rewards.redeem()`'s `newReward` are typed
