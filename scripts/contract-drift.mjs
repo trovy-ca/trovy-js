@@ -9,13 +9,34 @@
 // "The same" means the same canonical hash: the served file is minified and has
 // code samples added, so its bytes never match the vendored one.
 //
+// It compares with the API's own copy, not the docs site's. The docs site publishes
+// the contract as the docs present it, with a feature that is not launched yet (gift
+// cards) taken out and a few sentences reworded, so it is never the whole contract
+// this SDK is generated from. The API's copy is whole, but leaves out the error
+// codes' descriptions (`x-enumDescriptions`), which are prose added for the docs;
+// they are left out of both sides here, and nowhere else: CONTRACT_SHA256 still
+// covers them.
+//
 // This only reports. The vendored file is replaced by hand, from the API's own
 // repository, and `pnpm codegen` follows. See RELEASING.md.
 
 import { readFileSync } from "node:fs";
 import { contractHash, VENDORED_CONTRACT } from "./contract-hash.mjs";
 
-const PUBLISHED = "https://developers.trovy.ca/openapi/v1.json";
+const PUBLISHED = "https://api.trovy.ca/v1/openapi.json";
+
+/** A copy without the error codes' descriptions, which only the committed contract carries. */
+function withoutProse(value) {
+  if (Array.isArray(value)) return value.map(withoutProse);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => key !== "x-enumDescriptions")
+        .map(([key, inner]) => [key, withoutProse(inner)]),
+    );
+  }
+  return value;
+}
 
 const flag = process.argv.indexOf("--url");
 const url = flag === -1 ? PUBLISHED : process.argv[flag + 1];
@@ -32,8 +53,8 @@ try {
   process.exit(2);
 }
 
-const ours = contractHash(vendored);
-const theirs = contractHash(served);
+const ours = contractHash(withoutProse(vendored));
+const theirs = contractHash(withoutProse(served));
 
 if (ours === theirs) {
   console.log(`contract-drift: in step with ${url} (${ours.slice(0, 12)})`);
