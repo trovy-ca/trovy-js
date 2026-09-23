@@ -41,7 +41,7 @@ export interface RequestOptions {
    * worker, a queue redelivery) still replays rather than double-applying. When
    * omitted the SDK generates one, which covers its own retries and nothing more.
    *
-   * Must not contain `":"`.
+   * 1–128 letters, digits, `.`, `_` or `-`; anything else is refused before sending.
    */
   idempotencyKey?: string;
   /** Abort the call. Composed with the client's own timeout. */

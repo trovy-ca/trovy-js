@@ -163,6 +163,9 @@ export function createTrovySignup(
         if (reportedRef.current !== message) {
           reportedRef.current = message;
           latest.current.onError?.({ stage: "config", code: "INVALID_CONFIG", message });
+          // The same state `data-trovy-state` shows, so a page that follows the
+          // callback does not sit on "loading" beside the fallback.
+          latest.current.onStateChange?.("unavailable");
         }
         setView({ state: "unavailable", configError: message });
         return () => setView(LOADING);

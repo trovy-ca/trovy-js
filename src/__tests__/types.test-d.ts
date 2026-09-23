@@ -56,6 +56,26 @@ type _RewardsListReturns = Expect<
   Equal<Awaited<ReturnType<typeof trovy.rewards.list>>, Result<"listCustomerRewards">>
 >;
 
+// --- What the API can answer null is typed nullable ----------------------------
+// The contract writes these as `allOf: [{ $ref }, { type: [object, null] }]`, which
+// generated `Reward & (Record<string, never> | null)`: never null, so
+// `earn.reward.id` compiled without a check and threw when nothing was earned.
+
+type _EarnRewardIsNullable = Expect<
+  Equal<Result<"earnReward">["reward"], components["schemas"]["Reward"] | null>
+>;
+type _RedeemNewRewardIsNullable = Expect<
+  Equal<Result<"redeemReward">["newReward"], components["schemas"]["Reward"] | null>
+>;
+
+async function _rewardNeedsACheck() {
+  const earn = await trovy.rewards.earn({ customerId: "c", orderId: "o", amountCents: 50 });
+  // @ts-expect-error reward is null when the order earned nothing
+  void earn.reward.id;
+  void earn.reward?.id;
+}
+void _rewardNeedsACheck;
+
 // --- A write's body is the spec's body, and nothing else --------------------
 
 type _EarnAcceptsSpecBody = Expect<
@@ -92,4 +112,6 @@ export type {
   _EarnAcceptsSpecBody,
   _VoidTakesAnId,
   _ReverseTakesIdThenBody,
+  _EarnRewardIsNullable,
+  _RedeemNewRewardIsNullable,
 };

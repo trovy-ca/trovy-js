@@ -129,7 +129,7 @@ A complete app is in [`examples/next-app-router`](./examples/next-app-router).
 | --- | --- |
 | `loading` | The frame exists and has not spoken yet. Space is reserved; nothing is shown. |
 | `ready` | The form is up. |
-| `unavailable` | Ten seconds of silence. `unavailableFallback` is shown. Not final: a form that was only slow moves to `ready`. |
+| `unavailable` | Ten seconds of silence, or props the form cannot start with (`INVALID_CONFIG`). `unavailableFallback` is shown. After silence it is not final: a form that was only slow moves to `ready`. |
 | `linking` | The customer verified; the token is on its way to `linkUrl`. |
 | `linked` | Your route answered: linked and saved. |
 | `link-failed` | `onError` has the reason and what can be done. |

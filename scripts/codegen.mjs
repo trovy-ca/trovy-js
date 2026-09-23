@@ -30,6 +30,17 @@ execFileSync(process.execPath, [generator, VENDORED_CONTRACT, "-o", join(outDir,
   stdio: ["ignore", "ignore", "inherit"],
 });
 
+// The contract writes a nullable reference as `allOf: [{ $ref }, { type: [object,
+// null] }]`, which openapi-typescript renders, faithfully, as
+// `Ref & (Record<string, never> | null)`. That type is never null, so
+// `earn.reward.id` compiled without a check and threw on an order too small to
+// earn. Say what the contract means instead. A contract that switches to
+// `anyOf: [{ $ref }, { type: "null" }]` already generates `Ref | null`, and this
+// then matches nothing.
+const NULLABLE_REF = /(components\["schemas"\]\["\w+"\]) & \(Record<string, never> \| null\)/g;
+const generated = join(outDir, "openapi.ts");
+writeFileSync(generated, readFileSync(generated, "utf8").replace(NULLABLE_REF, "$1 | null"));
+
 const hash = contractHash(JSON.parse(readFileSync(VENDORED_CONTRACT, "utf8")));
 
 writeFileSync(

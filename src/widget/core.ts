@@ -329,10 +329,14 @@ function mountWith(frameOrigins: FrameOrigins, target: Element | string, options
 
   if (typeof publishableKey !== "string" || !PUBLISHABLE_KEY_PATTERN.test(publishableKey)) {
     // The key itself is never repeated: if it was a secret one, it stays out of
-    // the console and out of whatever collects the console.
+    // the console and out of whatever collects the console. Only whether it
+    // looks like one is said, test or live alike.
+    const secret = typeof publishableKey === "string" && /^trv_(live|test)_/.test(publishableKey);
     throw new TrovyConfigError(
       "Trovy: publishableKey must look like trv_pk_live_<32 hex> or trv_pk_test_<32 hex>. " +
-        "Secret keys (trv_live_…) must never appear in a browser."
+        (secret
+          ? "This is a secret key: it must never appear in a browser. Keep it on your server and pass the publishable key here."
+          : "Secret keys (trv_live_…, trv_test_…) must never appear in a browser.")
     );
   }
 
@@ -456,10 +460,17 @@ function mountWith(frameOrigins: FrameOrigins, target: Element | string, options
       if (alive) return;
       iframe.style.display = "none";
       setState("unavailable");
+      // The browser says why only in its own console, as a CSP report the page
+      // cannot read. The usual cause while building is this page's origin, so
+      // the message names it.
       callOut(onError, {
         stage: "widget",
         code: "WIDGET_UNAVAILABLE",
-        message: "The sign-up form could not be loaded.",
+        message:
+          `The sign-up form did not load within ${READY_TIMEOUT_MS / 1000} seconds. When this happens on every ` +
+          `load, this page's origin (${window.location.origin}) is not in the publishable key's allowed ` +
+          "origins: add it in the Trovy dashboard, under Integrations → Developer API. Otherwise the key " +
+          "was revoked, or Trovy could not be reached.",
       });
     }, READY_TIMEOUT_MS);
 

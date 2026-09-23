@@ -8,9 +8,24 @@ contain a breaking change, and it will be called out here.
 `@trovy/sdk/widget/core` and `createTrovySignup` exist for Trovy's own builds and
 are not covered by semver.
 
-## 0.1.0-rc.1
+## Unreleased
 
-No changes to the package. Proves the automated release pipeline.
+### Fixed
+
+- `rewards.earn()`'s `reward` and `rewards.redeem()`'s `newReward` are typed
+  `Reward | null`. They were typed as never null, so `earn.reward.id` compiled
+  without a check and threw on an order too small to earn. Code that already
+  checks (`earn.reward?.id`) is unaffected; code that did not now fails to
+  compile where it would have failed at runtime.
+- `WIDGET_UNAVAILABLE`'s message names this page's origin and says where to list
+  it. It used to say only "The sign-up form could not be loaded", while the cause
+  was visible only in the browser console.
+- A secret key passed as `publishableKey` is called one, test or live alike. The
+  message used to name only `trv_live_…`.
+- `<TrovySignup>` calls `onStateChange("unavailable")` when its props are wrong,
+  matching `data-trovy-state`. It used to leave a page that follows the callback
+  on `loading`.
+- The hover docs of `TrovyError.details` and `idempotencyKey` match the guides.
 
 ## 0.1.0-rc.1
 
