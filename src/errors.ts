@@ -34,7 +34,11 @@ export class TrovyError extends Error {
   readonly code: string;
   /** Quote this to Trovy support; it identifies the exact request in our logs. */
   readonly requestId: string | undefined;
-  /** Field-level detail on a 400, absent otherwise. */
+  /**
+   * Machine-readable detail, when the API sends some: the failing fields on a 400,
+   * and on several 409s the figure to act on (`minimumOrderCents`,
+   * `remainingRefundableCents`, `balanceCents`, the waiting `reward`).
+   */
   readonly details: unknown;
   /**
    * Seconds to wait, from the response's `Retry-After`, on the two statuses that

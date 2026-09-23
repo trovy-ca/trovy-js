@@ -434,7 +434,7 @@ export interface components {
              * @example 250
              */
             earnedCents: number;
-            reward: components["schemas"]["Reward"] & (Record<string, never> | null);
+            reward: components["schemas"]["Reward"] | null;
             /**
              * @description Trovy's id for this order. Quote it to support.
              * @example clx1tx000001
@@ -492,7 +492,7 @@ export interface components {
              * @example 250
              */
             redeemedCents: number;
-            newReward: components["schemas"]["Reward"] & (Record<string, never> | null);
+            newReward: components["schemas"]["Reward"] | null;
             /**
              * @description Trovy's id for this order. Quote it to support.
              * @example clx1tx000001

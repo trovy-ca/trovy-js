@@ -356,6 +356,20 @@ describe("a mistake in the props", () => {
     expect(document.body.innerHTML).not.toContain("cccc");
   });
 
+  it("tells onStateChange what data-trovy-state shows, once", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const onStateChange = vi.fn();
+
+    render(
+      <StrictMode>
+        <TrovySignup publishableKey="nope" onSuccess={noop} onStateChange={onStateChange} />
+      </StrictMode>,
+    );
+
+    expect(wrapper().dataset.trovyState).toBe("unavailable");
+    expect(onStateChange.mock.calls).toEqual([["unavailable"]]);
+  });
+
   it("shows the developer what is wrong, on the page, outside production", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
 

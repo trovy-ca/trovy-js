@@ -159,6 +159,23 @@ describe("options", () => {
     ).toThrow(/exactly one of/);
   });
 
+  // A test secret key is as secret as a live one, and a message naming only
+  // `trv_live_` reads as if it were about somebody else's key.
+  it.each([`trv_test_${"c".repeat(64)}`, `trv_live_${"c".repeat(64)}`])(
+    "says %s is a secret key, without repeating it",
+    (key) => {
+      let message = "";
+      try {
+        mount(host, { publishableKey: key, onSuccess: noop });
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toMatch(/This is a secret key: it must never appear in a browser/);
+      expect(message).not.toContain("cccc");
+      expect(host.querySelector("iframe")).toBeNull();
+    },
+  );
+
   it("is structurally the error onError would have received", () => {
     try {
       mount(host, { publishableKey: "nope", onSuccess: noop });
@@ -528,10 +545,24 @@ describe("a frame that never arrives", () => {
     expect(onError).toHaveBeenCalledWith({
       stage: "widget",
       code: "WIDGET_UNAVAILABLE",
-      message: "The sign-up form could not be loaded.",
+      message: expect.stringContaining("The sign-up form did not load within 10 seconds."),
     });
     expect(iframe().style.display).toBe("none");
     expect(handle.getState()).toBe("unavailable");
+  });
+
+  // The usual cause while building is an unlisted origin, and the browser says so
+  // only in its console. The developer reads `onError`, so it names the origin.
+  it("names this page's origin, the one the key must list", () => {
+    vi.useFakeTimers();
+    const onError = vi.fn();
+    mount(host, { publishableKey: LIVE_PK, onSuccess: noop, onError });
+
+    vi.advanceTimersByTime(10_000);
+
+    const { message } = onError.mock.calls[0]![0] as { message: string };
+    expect(message).toContain("this page's origin (http://localhost:3000) is not in the publishable key's allowed origins");
+    expect(message).not.toContain(LIVE_PK);
   });
 
   // What a browser draws in a refused frame is its own grey error page.
