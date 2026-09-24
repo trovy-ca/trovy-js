@@ -8,7 +8,7 @@ contain a breaking change, and it will be called out here.
 `@trovy/sdk/widget/core` and `createTrovySignup` exist for Trovy's own builds and
 are not covered by semver.
 
-## Unreleased
+## 0.1.1
 
 ### Changed
 
