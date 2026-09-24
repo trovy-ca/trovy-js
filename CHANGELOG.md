@@ -8,7 +8,7 @@ contain a breaking change, and it will be called out here.
 `@trovy/sdk/widget/core` and `createTrovySignup` exist for Trovy's own builds and
 are not covered by semver.
 
-## Unreleased
+## 0.1.1
 
 ### Changed
 
@@ -20,6 +20,13 @@ are not covered by semver.
   when an earn's `reward` is `null`.
 - `TrovyError.requestId`'s hover text and the README say to quote it to
   hello@trovy.ca.
+- The generated types follow the API's current contract. No request or response shape
+  changed; only the text your editor shows: descriptions name routes rather than
+  operation ids, the `Idempotency-Key` description says to use the id your system
+  already has for the event (your order id, or your refund's own id), the redeem
+  description says to take the reward's `valueCents` off the order, and
+  `TrovyError.details` is described as it behaves. The examples use neutral values
+  and the fictional `+1 416 555 0100`.
 
 ## 0.1.0
 

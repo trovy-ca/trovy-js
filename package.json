@@ -1,6 +1,6 @@
 {
   "name": "@trovy/sdk",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Trovy loyalty for your own app: a typed server client, the sign-up form as a React component, and the Next.js glue between them",
   "license": "MIT",
   "author": "Trovy Inc.",

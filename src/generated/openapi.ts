@@ -55,7 +55,7 @@ export interface paths {
         put?: never;
         /**
          * Exchange a sign-up widget token for a customer id
-         * @description When the widget's `trovy:success` message hands your page a `linkToken`, post it here from your server. The answer is the customer id you store against your own account record and pass to every rewards and gift-card call. A token is valid for five minutes and can be exchanged once; if your exchange fails or times out, have the customer verify again — their membership already exists, so it takes seconds.
+         * @description When the sign-up form hands your page a `linkToken` (`onSuccess`, or your link route), post it here from your server. The answer is the customer id you store against your own account record and pass to every rewards and gift-card call. A token is valid for five minutes and can be exchanged once; if your exchange fails or times out, have the customer verify again — their membership already exists, so it takes seconds.
          */
         post: operations["linkCustomer"];
         delete?: never;
@@ -93,7 +93,7 @@ export interface paths {
         };
         /**
          * A customer's rewards waiting to be redeemed
-         * @description The customer's rewards at your business: usable ones first, then soonest-expiring. Normally zero or one: a customer redeems a usable reward before they earn again, and a new qualifying order grows the reward they already have. Call it when the customer reaches checkout: apply a reward with `redeemReward` when it is `usable`; otherwise record the order with `earnReward`.
+         * @description The customer's rewards at your business: usable ones first, then soonest-expiring. Normally zero or one: a customer redeems a usable reward before they earn again, and a new qualifying order grows the reward they already have. Call it when the customer reaches checkout: apply a reward with `POST /v1/redeem` when it is `usable` and the order reaches its minimum; otherwise record the order with `POST /v1/earn`, or nothing while a usable reward is waiting.
          */
         get: operations["listCustomerRewards"];
         put?: never;
@@ -115,7 +115,7 @@ export interface paths {
         put?: never;
         /**
          * Record an order and earn the customer a reward
-         * @description Call it once the order is paid. The reward is the program's rate of the order total, rounded to whole dollars, so small orders can earn nothing (`earnedCents: 0`) — that is still a recorded order, not an error. A customer with a usable reward waiting cannot earn again until it is redeemed: the answer is 409 `ACTIVE_REWARD_EXISTS` with the reward in `details`, and your checkout should offer to apply it (`redeemReward`) instead. A reward the program is still holding back (`usable: false`) doesn't block: the order adds to it. Retrying with the same `Idempotency-Key` returns the original result with `replayed: true`.
+         * @description Call it once the order is paid. The reward is the program's rate of the order total, rounded to whole dollars, so small orders can earn nothing (`earnedCents: 0`) — that is still a recorded order, not an error. A customer with a usable reward waiting cannot earn again until it is redeemed: the answer is 409 `ACTIVE_REWARD_EXISTS` with the reward in `details`, and your checkout should offer to apply it (`POST /v1/redeem`) instead. A reward the program is still holding back (`usable: false`) doesn't block: the order adds to it. Retrying with the same `Idempotency-Key` returns the original result with `replayed: true`.
          */
         post: operations["earnReward"];
         delete?: never;
@@ -135,7 +135,7 @@ export interface paths {
         put?: never;
         /**
          * Apply a customer's reward to an order
-         * @description Take `redeemedCents` off the order, then call this once the order is paid. The order must reach the reward's `minimumOrderCents`. On a recurring program the order also earns a new reward on what the customer actually paid (`newReward`). Rewards are redeemed oldest first. A reward the program is still holding back (`usable: false`) is refused with `REWARD_NOT_YET_USABLE`. Retrying with the same `Idempotency-Key` returns the original result with `replayed: true`.
+         * @description Take the reward's `valueCents` off the order yourself, capture the rest, then call this once the order is paid. The order must reach the reward's `minimumOrderCents`. On a recurring program the order also earns a new reward on what the customer actually paid (`newReward`). Rewards are redeemed oldest first. A reward the program is still holding back (`usable: false`) is refused with `REWARD_NOT_YET_USABLE`. Retrying with the same `Idempotency-Key` returns the original result with `replayed: true`.
          */
         post: operations["redeemReward"];
         delete?: never;
@@ -333,9 +333,9 @@ export interface components {
              * @enum {string}
              */
             code: "API_KEY_MISSING" | "API_KEY_INVALID" | "API_KEY_REVOKED" | "API_KEY_DISABLED" | "API_KEY_WRONG_TYPE" | "API_NOT_ENABLED" | "VALIDATION_ERROR" | "NOT_FOUND" | "LINK_TOKEN_INVALID" | "CUSTOMER_NOT_FOUND" | "IDEMPOTENCY_MISMATCH" | "DUPLICATE_ORDER" | "ACTIVE_REWARD_EXISTS" | "NO_ACTIVE_PROGRAM" | "FIRST_ORDER_ONLY" | "STORE_NOT_FOUND" | "REWARD_NOT_FOUND" | "REWARD_ALREADY_REDEEMED" | "REWARD_EXPIRED" | "REWARD_NOT_YET_USABLE" | "REWARD_VOIDED" | "REWARD_CHANGED" | "NOT_OLDEST_REWARD" | "MINIMUM_ORDER_NOT_MET" | "ORDER_NOT_FOUND" | "ORDER_AMBIGUOUS" | "NOT_REFUNDABLE" | "REFUND_EXCEEDS_REMAINING" | "ALREADY_FULLY_REFUNDED" | "GIFT_CARDS_NOT_ENABLED" | "AMOUNT_OUT_OF_RANGE" | "DAILY_CAP_REACHED" | "GIFT_CARD_NOT_FOUND" | "GIFT_CARD_NOT_REDEEMABLE" | "INSUFFICIENT_BALANCE" | "NOT_YOUR_GIFT_CARD" | "REDEMPTION_NOT_FOUND" | "NOT_REVERSIBLE" | "EXCEEDS_REVERSIBLE" | "RATE_LIMITED" | "INTERNAL_ERROR";
-            /** @description Identifies this request in Trovy's logs. Quote it to support. */
+            /** @description Identifies this request in Trovy's logs. Quote it when you email hello@trovy.ca. */
             requestId?: string;
-            /** @description Validation issues, when `code` is VALIDATION_ERROR. */
+            /** @description The failing fields on a 400; on several 409s the value to act on (see each code). */
             details?: unknown;
         };
         StoresResponse: {
@@ -344,7 +344,7 @@ export interface components {
         Store: {
             /** @example clx1store00001 */
             id: string;
-            /** @example Simpson Bay */
+            /** @example Downtown */
             name: string;
             /** @description The location orders are attributed to when none is given. */
             isDefault: boolean;
@@ -364,7 +364,7 @@ export interface components {
         };
         LinkCustomerRequest: {
             /**
-             * @description The one-time token the sign-up widget handed your page in its `trovy:success` message. Valid for five minutes, exchangeable once.
+             * @description The one-time token the sign-up widget handed your page (`onSuccess`, or your link route). Valid for five minutes, exchangeable once.
              * @example Xm3kQ…
              */
             linkToken: string;
@@ -389,8 +389,8 @@ export interface components {
         } | null;
         LookupCustomerRequest: {
             /**
-             * @description A North American number. Formatting is ignored: `+17215550100`, `17215550100` and `(721) 555-0100` are the same number.
-             * @example +17215550100
+             * @description A North American number. Formatting is ignored: `+14165550100`, `14165550100` and `(416) 555-0100` are the same number.
+             * @example +14165550100
              */
             phone: string;
         };
@@ -436,7 +436,7 @@ export interface components {
             earnedCents: number;
             reward: components["schemas"]["Reward"] | null;
             /**
-             * @description Trovy's id for this order. Quote it to support.
+             * @description Trovy's id for this order. Quote it when you email hello@trovy.ca.
              * @example clx1tx000001
              */
             transactionId: string;
@@ -494,7 +494,7 @@ export interface components {
             redeemedCents: number;
             newReward: components["schemas"]["Reward"] | null;
             /**
-             * @description Trovy's id for this order. Quote it to support.
+             * @description Trovy's id for this order. Quote it when you email hello@trovy.ca.
              * @example clx1tx000001
              */
             transactionId: string;
@@ -1018,7 +1018,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters. */
+                /** @description Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters. */
                 "idempotency-key": string;
             };
             path?: never;
@@ -1099,7 +1099,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters. */
+                /** @description Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters. */
                 "idempotency-key": string;
             };
             path?: never;
@@ -1180,7 +1180,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters. */
+                /** @description Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters. */
                 "idempotency-key": string;
             };
             path?: never;
@@ -1261,7 +1261,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters. */
+                /** @description Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters. */
                 "idempotency-key": string;
             };
             path?: never;
@@ -1411,7 +1411,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters. */
+                /** @description Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters. */
                 "idempotency-key": string;
             };
             path?: never;
@@ -1492,7 +1492,7 @@ export interface operations {
         parameters: {
             query?: never;
             header: {
-                /** @description Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters. */
+                /** @description Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters. */
                 "idempotency-key": string;
             };
             path: {
