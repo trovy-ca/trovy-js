@@ -260,7 +260,7 @@ describe("a write with no idempotency key is not retried for us", () => {
       json(200, { linked: false })
     );
 
-    await client({ fetch, maxRetries: 2 }).customers.lookup({ phone: "+17215550100" });
+    await client({ fetch, maxRetries: 2 }).customers.lookup({ phone: "+14165550100" });
 
     expect(calls).toHaveLength(2);
   });

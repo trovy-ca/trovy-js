@@ -8,4 +8,4 @@
  * the API's OpenAPI document with keys sorted and code samples removed, so the
  * same contract hashes the same however it was formatted or served.
  */
-export const CONTRACT_SHA256 = "6867bef30a9afe115d5368482b905f73545f485ed175c69f14c9410c59b5ef45";
+export const CONTRACT_SHA256 = "467822287d2dcd07e60c7e76b354daaabe5de4b76d7bf8c53b00288e50259ee4";

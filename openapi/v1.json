@@ -3,7 +3,7 @@
   "info": {
     "title": "Trovy API",
     "version": "1",
-    "description": "The Trovy loyalty engine, for a partner's own backend: instant rewards and gift cards behind your own checkout. Trovy handles no payments.\n\n## Authentication\n\nEvery request carries a secret key: `Authorization: Bearer trv_live_…` against production, `Authorization: Bearer trv_test_…` against the sandbox. Keys belong on your server only — never in a mobile app or a web page. Your team creates, rotates and revokes them in the Trovy dashboard.\n\n## Sandbox\n\nYour team makes its own sandbox in the Trovy dashboard (Integrations → Developer API → Create sandbox): a test copy of your business, with its own test keys. `https://api.sandbox.trovy.ca` runs the same API against it. Test keys only work there, and live keys only against production. No text message ever leaves a sandbox: every response that would have sent one carries the rendered message in `sms.preview`. Its sign-up form accepts only fictional phone numbers (any area code, then 555-0100 to 555-0199), so a sandbox can never reach a real person.\n\n## Idempotency\n\nEvery request that changes something takes an `Idempotency-Key` header. Retrying with the same key returns the original result, so a timed-out call can never earn twice or charge a gift card twice. Reusing a key with a different body is refused.\n\n## Errors\n\nErrors are `{ \"error\": \"…\", \"code\": \"…\", \"requestId\": \"…\" }`. `code` is stable and documented on each operation; quote `requestId` when you contact support. A 401 means fix your credentials (rotate the key); a 403 means the key is recognised and something else forbids the call.\n\n## Rate limits\n\nLimits are per key. Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`; a 429 adds `Retry-After`.\n\n## Versioning\n\nThe version is in the path. Changes within `/v1` are additive: new endpoints, new optional fields, new error codes. Anything that would break a working integration ships as `/v2`."
+    "description": "The Trovy loyalty engine, for a partner's own backend: instant rewards and gift cards behind your own checkout. Trovy handles no payments.\n\n## Authentication\n\nEvery request carries a secret key: `Authorization: Bearer trv_live_…` against production, `Authorization: Bearer trv_test_…` against the sandbox. Keys belong on your server only — never in a mobile app or a web page. Your team creates, rotates and revokes them in the Trovy dashboard.\n\n## Sandbox\n\nYour team makes its own sandbox in the Trovy dashboard (Integrations → Developer API → Create sandbox): a test copy of your business, with its own test keys. `https://api.sandbox.trovy.ca` runs the same API against it. Test keys only work there, and live keys only against production. No text message ever leaves a sandbox: every response that would have sent one carries the rendered message in `sms.preview`. Its sign-up form accepts only fictional phone numbers (a US or Canadian area code, or 721, then 555-0100 to 555-0199), so a sandbox can never reach a real person.\n\n## Idempotency\n\nEvery request that changes something takes an `Idempotency-Key` header. Retrying with the same key returns the original result, so a timed-out call can never earn twice or charge a gift card twice. Reusing a key with a different body is refused.\n\n## Errors\n\nErrors are `{ \"error\": \"…\", \"code\": \"…\", \"requestId\": \"…\" }`. `code` is stable and documented on each operation; quote `requestId` when you email hello@trovy.ca. A 401 means fix your credentials (rotate the key); a 403 means the key is recognised and something else forbids the call.\n\n## Rate limits\n\nLimits are per key. Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`; a 429 adds `Retry-After`.\n\n## Versioning\n\nThe version is in the path. Changes within `/v1` are additive: new endpoints, new optional fields, new error codes. Anything that would break a working integration ships as `/v2`."
   },
   "servers": [
     {
@@ -220,10 +220,10 @@
               "CUSTOMER_NOT_FOUND": "No member of your business matches — the phone number is not a member's, or the customer id is not one of yours.",
               "IDEMPOTENCY_MISMATCH": "This `Idempotency-Key` was already used for a request with a different body. Use a new key for a new order event.",
               "DUPLICATE_ORDER": "An order with this `orderId` is already recorded for your business. Order ids are unique per business.",
-              "ACTIVE_REWARD_EXISTS": "The customer has a usable reward waiting (`details.reward`). An order applies it with `redeemReward` or earns nothing; it cannot earn on top. A reward that is not usable yet never blocks an earn: the order adds to it.",
+              "ACTIVE_REWARD_EXISTS": "The customer has a usable reward waiting (`details.reward`). An order applies it with `POST /v1/redeem` or records nothing; it cannot earn on top. A reward that is not usable yet never blocks an earn: the order adds to it.",
               "NO_ACTIVE_PROGRAM": "Your business has no active rewards program linked to the Developer API.",
               "FIRST_ORDER_ONLY": "The program rewards a customer's first order only, and this customer has already earned.",
-              "STORE_NOT_FOUND": "`storeId` is not one of your active locations (`listStores`).",
+              "STORE_NOT_FOUND": "`storeId` is not one of your active locations (`GET /v1/stores`).",
               "REWARD_NOT_FOUND": "No such reward for this customer at your business.",
               "REWARD_ALREADY_REDEEMED": "The reward was already redeemed.",
               "REWARD_EXPIRED": "The reward has expired.",
@@ -233,7 +233,7 @@
               "NOT_OLDEST_REWARD": "Rewards are redeemed oldest first; `details.oldestRewardId` is the one to apply.",
               "MINIMUM_ORDER_NOT_MET": "The order does not reach the reward's minimum; `details.minimumOrderCents`.",
               "ORDER_NOT_FOUND": "No order with this `orderId` was recorded through the API for your business.",
-              "ORDER_AMBIGUOUS": "More than one purchase is recorded under this `orderId`. Contact support.",
+              "ORDER_AMBIGUOUS": "More than one purchase is recorded under this `orderId`. Email hello@trovy.ca.",
               "NOT_REFUNDABLE": "This order cannot be refunded.",
               "REFUND_EXCEEDS_REMAINING": "`amountCents` is more than what is left to refund; `details.remainingRefundableCents`.",
               "ALREADY_FULLY_REFUNDED": "The order has already been fully refunded.",
@@ -248,15 +248,15 @@
               "NOT_REVERSIBLE": "This debit cannot be put back: the card is voided, or the row is itself a reversal.",
               "EXCEEDS_REVERSIBLE": "More than this debit can still put back; `details.reversibleCents` is the remainder.",
               "RATE_LIMITED": "Too many requests; wait `Retry-After` seconds.",
-              "INTERNAL_ERROR": "Something failed on our side. Quote `requestId` to support."
+              "INTERNAL_ERROR": "Something failed on our side. Quote `requestId` when you email hello@trovy.ca."
             }
           },
           "requestId": {
             "type": "string",
-            "description": "Identifies this request in Trovy's logs. Quote it to support."
+            "description": "Identifies this request in Trovy's logs. Quote it when you email hello@trovy.ca."
           },
           "details": {
-            "description": "Validation issues, when `code` is VALIDATION_ERROR."
+            "description": "The failing fields on a 400; on several 409s the value to act on (see each code)."
           }
         },
         "required": [
@@ -287,7 +287,7 @@
           },
           "name": {
             "type": "string",
-            "example": "Simpson Bay"
+            "example": "Downtown"
           },
           "isDefault": {
             "type": "boolean",
@@ -342,7 +342,7 @@
             "minLength": 1,
             "maxLength": 200,
             "example": "Xm3kQ…",
-            "description": "The one-time token the sign-up widget handed your page in its `trovy:success` message. Valid for five minutes, exchangeable once."
+            "description": "The one-time token the sign-up widget handed your page (`onSuccess`, or your link route). Valid for five minutes, exchangeable once."
           }
         },
         "required": [
@@ -397,8 +397,8 @@
           "phone": {
             "type": "string",
             "pattern": "^\\+?1?[\\s().-]*[2-9](?:[\\s().-]*\\d){9}$",
-            "example": "+17215550100",
-            "description": "A North American number. Formatting is ignored: `+17215550100`, `17215550100` and `(721) 555-0100` are the same number."
+            "example": "+14165550100",
+            "description": "A North American number. Formatting is ignored: `+14165550100`, `14165550100` and `(416) 555-0100` are the same number."
           }
         },
         "required": [
@@ -499,7 +499,7 @@
           "transactionId": {
             "type": "string",
             "example": "clx1tx000001",
-            "description": "Trovy's id for this order. Quote it to support."
+            "description": "Trovy's id for this order. Quote it when you email hello@trovy.ca."
           },
           "sms": {
             "$ref": "#/components/schemas/Sms"
@@ -629,7 +629,7 @@
           "transactionId": {
             "type": "string",
             "example": "clx1tx000001",
-            "description": "Trovy's id for this order. Quote it to support."
+            "description": "Trovy's id for this order. Quote it when you email hello@trovy.ca."
           },
           "sms": {
             "$ref": "#/components/schemas/Sms"
@@ -1232,7 +1232,7 @@
           "Customers"
         ],
         "summary": "Exchange a sign-up widget token for a customer id",
-        "description": "When the widget's `trovy:success` message hands your page a `linkToken`, post it here from your server. The answer is the customer id you store against your own account record and pass to every rewards and gift-card call. A token is valid for five minutes and can be exchanged once; if your exchange fails or times out, have the customer verify again — their membership already exists, so it takes seconds.",
+        "description": "When the sign-up form hands your page a `linkToken` (`onSuccess`, or your link route), post it here from your server. The answer is the customer id you store against your own account record and pass to every rewards and gift-card call. A token is valid for five minutes and can be exchanged once; if your exchange fails or times out, have the customer verify again — their membership already exists, so it takes seconds.",
         "x-trovy-idempotency-exempt": "A link token is single-use by itself: a retry answers 404 and the member verifies again.",
         "requestBody": {
           "required": true,
@@ -1388,7 +1388,7 @@
           "Rewards"
         ],
         "summary": "A customer's rewards waiting to be redeemed",
-        "description": "The customer's rewards at your business: usable ones first, then soonest-expiring. Normally zero or one: a customer redeems a usable reward before they earn again, and a new qualifying order grows the reward they already have. Call it when the customer reaches checkout: apply a reward with `redeemReward` when it is `usable`; otherwise record the order with `earnReward`.",
+        "description": "The customer's rewards at your business: usable ones first, then soonest-expiring. Normally zero or one: a customer redeems a usable reward before they earn again, and a new qualifying order grows the reward they already have. Call it when the customer reaches checkout: apply a reward with `POST /v1/redeem` when it is `usable` and the order reaches its minimum; otherwise record the order with `POST /v1/earn`, or nothing while a usable reward is waiting.",
         "parameters": [
           {
             "schema": {
@@ -1454,7 +1454,7 @@
           "Rewards"
         ],
         "summary": "Record an order and earn the customer a reward",
-        "description": "Call it once the order is paid. The reward is the program's rate of the order total, rounded to whole dollars, so small orders can earn nothing (`earnedCents: 0`) — that is still a recorded order, not an error. A customer with a usable reward waiting cannot earn again until it is redeemed: the answer is 409 `ACTIVE_REWARD_EXISTS` with the reward in `details`, and your checkout should offer to apply it (`redeemReward`) instead. A reward the program is still holding back (`usable: false`) doesn't block: the order adds to it. Retrying with the same `Idempotency-Key` returns the original result with `replayed: true`.",
+        "description": "Call it once the order is paid. The reward is the program's rate of the order total, rounded to whole dollars, so small orders can earn nothing (`earnedCents: 0`) — that is still a recorded order, not an error. A customer with a usable reward waiting cannot earn again until it is redeemed: the answer is 409 `ACTIVE_REWARD_EXISTS` with the reward in `details`, and your checkout should offer to apply it (`POST /v1/redeem`) instead. A reward the program is still holding back (`usable: false`) doesn't block: the order adds to it. Retrying with the same `Idempotency-Key` returns the original result with `replayed: true`.",
         "parameters": [
           {
             "schema": {
@@ -1462,11 +1462,11 @@
               "minLength": 1,
               "maxLength": 128,
               "pattern": "^[A-Za-z0-9_.-]+$",
-              "example": "order-10233-earn",
-              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
+              "example": "ORD-10233",
+              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
             },
             "required": true,
-            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
+            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
             "in": "header",
             "name": "idempotency-key"
           }
@@ -1562,7 +1562,7 @@
           "Rewards"
         ],
         "summary": "Apply a customer's reward to an order",
-        "description": "Take `redeemedCents` off the order, then call this once the order is paid. The order must reach the reward's `minimumOrderCents`. On a recurring program the order also earns a new reward on what the customer actually paid (`newReward`). Rewards are redeemed oldest first. A reward the program is still holding back (`usable: false`) is refused with `REWARD_NOT_YET_USABLE`. Retrying with the same `Idempotency-Key` returns the original result with `replayed: true`.",
+        "description": "Take the reward's `valueCents` off the order yourself, capture the rest, then call this once the order is paid. The order must reach the reward's `minimumOrderCents`. On a recurring program the order also earns a new reward on what the customer actually paid (`newReward`). Rewards are redeemed oldest first. A reward the program is still holding back (`usable: false`) is refused with `REWARD_NOT_YET_USABLE`. Retrying with the same `Idempotency-Key` returns the original result with `replayed: true`.",
         "parameters": [
           {
             "schema": {
@@ -1570,11 +1570,11 @@
               "minLength": 1,
               "maxLength": 128,
               "pattern": "^[A-Za-z0-9_.-]+$",
-              "example": "order-10233-earn",
-              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
+              "example": "ORD-10233",
+              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
             },
             "required": true,
-            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
+            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
             "in": "header",
             "name": "idempotency-key"
           }
@@ -1678,11 +1678,11 @@
               "minLength": 1,
               "maxLength": 128,
               "pattern": "^[A-Za-z0-9_.-]+$",
-              "example": "order-10233-earn",
-              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
+              "example": "ORD-10233",
+              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
             },
             "required": true,
-            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
+            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
             "in": "header",
             "name": "idempotency-key"
           }
@@ -1786,11 +1786,11 @@
               "minLength": 1,
               "maxLength": 128,
               "pattern": "^[A-Za-z0-9_.-]+$",
-              "example": "order-10233-earn",
-              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
+              "example": "ORD-10233",
+              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
             },
             "required": true,
-            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
+            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
             "in": "header",
             "name": "idempotency-key"
           }
@@ -1977,11 +1977,11 @@
               "minLength": 1,
               "maxLength": 128,
               "pattern": "^[A-Za-z0-9_.-]+$",
-              "example": "order-10233-earn",
-              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
+              "example": "ORD-10233",
+              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
             },
             "required": true,
-            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
+            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
             "in": "header",
             "name": "idempotency-key"
           }
@@ -2097,11 +2097,11 @@
               "minLength": 1,
               "maxLength": 128,
               "pattern": "^[A-Za-z0-9_.-]+$",
-              "example": "order-10233-earn",
-              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
+              "example": "ORD-10233",
+              "description": "Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters."
             },
             "required": true,
-            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). A key of your choosing, unique per order event — your order id plus the action is a good one. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
+            "description": "Sent as `Idempotency-Key` (header names are case-insensitive). The id your system already has for this event: your order id for an earn or redeem, your refund's own id for a refund. Retrying with the same key returns the original result (`replayed: true`); reusing it with a different body is refused with `IDEMPOTENCY_MISMATCH`. Letters, digits, `.`, `_` and `-`, up to 128 characters.",
             "in": "header",
             "name": "idempotency-key"
           }
