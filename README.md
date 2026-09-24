@@ -33,9 +33,11 @@ numbers listed in the [docs](https://developers.trovy.ca/guides/sandbox). Live
 keys come later, from your real business, once its owner switches the Developer API
 on there.
 
-**1. Keys.** In the dashboard, add your site's origin (`https://shop.example`,
-and `http://localhost:3000` for development) to the publishable key's allowed
-origins, and save the list. A key with no origins loads nowhere. Then:
+**1. Keys.** In the dashboard, under the publishable key's **Websites this key may
+load on**, add your site's origin (`https://shop.example`, and
+`http://localhost:3000` for development), then press **Save websites**. A key with
+none loads nowhere, and a website you have just saved can take up to a minute to
+start working. Then:
 
 ```bash
 # .env.local
@@ -320,11 +322,13 @@ console.log(earn.earnedCents, earn.reward?.valueCents);
 
 ### Redeem on the next one
 
-`reward` is `null` when the order was too small to earn a whole dollar (the order
-is still recorded, with `earnedCents: 0`), so check it rather than asserting it.
+`reward` is `null` when the order earned nothing: rewards are whole dollars,
+rounded to the nearest, so an order worth less than 50¢ in rewards earns none (it
+is still recorded, with `earnedCents: 0`). Check it rather than asserting it.
 
-An order either earns or redeems, never both, and an earn for a customer with a
-usable reward waiting is refused with `409 ACTIVE_REWARD_EXISTS`. So at checkout,
+You call earn or redeem for an order, never both (on a recurring program the redeem
+itself earns on what the customer paid, as `newReward`), and an earn for a customer
+with a usable reward waiting is refused with `409 ACTIVE_REWARD_EXISTS`. So at checkout,
 read the customer's rewards first and let them decide which call to make:
 
 ```ts
@@ -411,15 +415,17 @@ try {
     if (err.code === "REWARD_NOT_FOUND") return showNoRewardAvailable();
     if (err.code === "MINIMUM_ORDER_NOT_MET") return showThreshold(err.message);
     if (err.status === 429) return backOff(err.retryAfterSeconds);
-    console.error(err.code, err.requestId); // quote requestId to support
+    // A 5xx survived the SDK's retries: it may have landed. Try again later, same key.
+    if (err.status >= 500) return queueRetry(order.id);
+    console.error(err.code, err.requestId); // quote requestId when you email hello@trovy.ca
   }
-  throw err; // a TrovyConnectionError, or something of yours
+  throw err; // a TrovyConnectionError (retry later, same key), or something of yours
 }
 ```
 
 | Class | Meaning |
 | --- | --- |
-| `TrovyError` | The API answered. `status`, `code`, `requestId`, `details`, `retryAfterSeconds`. The decision is final for this request. |
+| `TrovyError` | Something answered. `status`, `code`, `requestId`, `details`, `retryAfterSeconds`. A `4xx` came from the API and is final for this request. A `5xx` survived the SDK's retries and may still have been applied (a proxy can fail after the API commits): treat it like a connection error. |
 | `TrovyConnectionError` | No answer came back after every retry. `attempts`, and the underlying failure as `cause`. The write **may or may not** have been applied — retry with the same idempotency key. |
 
 Use `isTrovyError` / `isTrovyConnectionError` rather than `instanceof`, which
@@ -436,7 +442,7 @@ const trovy = new Trovy({
 ```
 
 The SDK retries a network failure, a timeout, and a 5xx other than 501, with
-jittered backoff, honouring `Retry-After`. It never retries a 4xx — **including
+jittered backoff, honoring `Retry-After`. It never retries a 4xx — **including
 429**: a rate limit comes back as a `TrovyError` carrying `retryAfterSeconds`, so
 your own queue decides when to go again rather than a checkout request stalling
 for thirty seconds.
