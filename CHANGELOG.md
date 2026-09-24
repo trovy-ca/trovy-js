@@ -8,6 +8,19 @@ contain a breaking change, and it will be called out here.
 `@trovy/sdk/widget/core` and `createTrovySignup` exist for Trovy's own builds and
 are not covered by semver.
 
+## Unreleased
+
+### Changed
+
+- The README's errors section no longer calls every `TrovyError` final. A `5xx` that
+  survives the SDK's retries may still have been applied, as the type docs already
+  said, so the example retries it later with the same idempotency key.
+- The README names the dashboard control where a publishable key's websites are set,
+  says a newly saved website can take a minute to start working, and states exactly
+  when an earn's `reward` is `null`.
+- `TrovyError.requestId`'s hover text and the README say to quote it to
+  hello@trovy.ca.
+
 ## 0.1.0
 
 ### Changed
