@@ -6,7 +6,7 @@ Please do not open a public issue.
 
 Use **Report a vulnerability** under this repository's Security tab. It opens a
 private advisory that only the maintainers can see. If you cannot use GitHub,
-write to hello@trovy.ca with "SECURITY" in the subject and we will move the
+write to developers@trovy.ca with "SECURITY" in the subject and we will move the
 conversation somewhere private.
 
 Tell us what you found, how to reproduce it, and which version. You will get an

@@ -32,7 +32,7 @@ export class TrovyError extends Error {
   readonly status: number;
   /** Stable machine-readable code, e.g. `"CUSTOMER_NOT_FOUND"`. */
   readonly code: string;
-  /** Quote this when you email hello@trovy.ca; it identifies the exact request in our logs. */
+  /** Quote this when you email developers@trovy.ca; it identifies the exact request in our logs. */
   readonly requestId: string | undefined;
   /**
    * Machine-readable detail, when the API sends some: the failing fields on a 400,

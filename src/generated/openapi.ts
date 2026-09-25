@@ -333,7 +333,7 @@ export interface components {
              * @enum {string}
              */
             code: "API_KEY_MISSING" | "API_KEY_INVALID" | "API_KEY_REVOKED" | "API_KEY_DISABLED" | "API_KEY_WRONG_TYPE" | "API_NOT_ENABLED" | "VALIDATION_ERROR" | "NOT_FOUND" | "LINK_TOKEN_INVALID" | "CUSTOMER_NOT_FOUND" | "IDEMPOTENCY_MISMATCH" | "DUPLICATE_ORDER" | "ACTIVE_REWARD_EXISTS" | "NO_ACTIVE_PROGRAM" | "FIRST_ORDER_ONLY" | "STORE_NOT_FOUND" | "REWARD_NOT_FOUND" | "REWARD_ALREADY_REDEEMED" | "REWARD_EXPIRED" | "REWARD_NOT_YET_USABLE" | "REWARD_VOIDED" | "REWARD_CHANGED" | "NOT_OLDEST_REWARD" | "MINIMUM_ORDER_NOT_MET" | "ORDER_NOT_FOUND" | "ORDER_AMBIGUOUS" | "NOT_REFUNDABLE" | "REFUND_EXCEEDS_REMAINING" | "ALREADY_FULLY_REFUNDED" | "GIFT_CARDS_NOT_ENABLED" | "AMOUNT_OUT_OF_RANGE" | "DAILY_CAP_REACHED" | "GIFT_CARD_NOT_FOUND" | "GIFT_CARD_NOT_REDEEMABLE" | "INSUFFICIENT_BALANCE" | "NOT_YOUR_GIFT_CARD" | "REDEMPTION_NOT_FOUND" | "NOT_REVERSIBLE" | "EXCEEDS_REVERSIBLE" | "RATE_LIMITED" | "INTERNAL_ERROR";
-            /** @description Identifies this request in Trovy's logs. Quote it when you email hello@trovy.ca. */
+            /** @description Identifies this request in Trovy's logs. Quote it when you email developers@trovy.ca. */
             requestId?: string;
             /** @description The failing fields on a 400; on several 409s the value to act on (see each code). */
             details?: unknown;
@@ -436,7 +436,7 @@ export interface components {
             earnedCents: number;
             reward: components["schemas"]["Reward"] | null;
             /**
-             * @description Trovy's id for this order. Quote it when you email hello@trovy.ca.
+             * @description Trovy's id for this order. Quote it when you email developers@trovy.ca.
              * @example clx1tx000001
              */
             transactionId: string;
@@ -494,7 +494,7 @@ export interface components {
             redeemedCents: number;
             newReward: components["schemas"]["Reward"] | null;
             /**
-             * @description Trovy's id for this order. Quote it when you email hello@trovy.ca.
+             * @description Trovy's id for this order. Quote it when you email developers@trovy.ca.
              * @example clx1tx000001
              */
             transactionId: string;
