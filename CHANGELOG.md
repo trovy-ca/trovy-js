@@ -8,6 +8,14 @@ contain a breaking change, and it will be called out here.
 `@trovy/sdk/widget/core` and `createTrovySignup` exist for Trovy's own builds and
 are not covered by semver.
 
+## Unreleased
+
+### Changed
+
+- Questions about the SDK or the API now go to developers@trovy.ca, Trovy's developer
+  support inbox. `TrovyError.requestId`'s hover text, the README, SECURITY.md and the
+  generated types' descriptions give that address. No code or type changed.
+
 ## 0.1.1
 
 ### Changed

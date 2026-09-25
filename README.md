@@ -417,7 +417,7 @@ try {
     if (err.status === 429) return backOff(err.retryAfterSeconds);
     // A 5xx survived the SDK's retries: it may have landed. Try again later, same key.
     if (err.status >= 500) return queueRetry(order.id);
-    console.error(err.code, err.requestId); // quote requestId when you email hello@trovy.ca
+    console.error(err.code, err.requestId); // quote requestId when you email developers@trovy.ca
   }
   throw err; // a TrovyConnectionError (retry later, same key), or something of yours
 }

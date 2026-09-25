@@ -3,7 +3,7 @@
   "info": {
     "title": "Trovy API",
     "version": "1",
-    "description": "The Trovy loyalty engine, for a partner's own backend: instant rewards and gift cards behind your own checkout. Trovy handles no payments.\n\n## Authentication\n\nEvery request carries a secret key: `Authorization: Bearer trv_live_…` against production, `Authorization: Bearer trv_test_…` against the sandbox. Keys belong on your server only — never in a mobile app or a web page. Your team creates, rotates and revokes them in the Trovy dashboard.\n\n## Sandbox\n\nYour team makes its own sandbox in the Trovy dashboard (Integrations → Developer API → Create sandbox): a test copy of your business, with its own test keys. `https://api.sandbox.trovy.ca` runs the same API against it. Test keys only work there, and live keys only against production. No text message ever leaves a sandbox: every response that would have sent one carries the rendered message in `sms.preview`. Its sign-up form accepts only fictional phone numbers (a US or Canadian area code, or 721, then 555-0100 to 555-0199), so a sandbox can never reach a real person.\n\n## Idempotency\n\nEvery request that changes something takes an `Idempotency-Key` header. Retrying with the same key returns the original result, so a timed-out call can never earn twice or charge a gift card twice. Reusing a key with a different body is refused.\n\n## Errors\n\nErrors are `{ \"error\": \"…\", \"code\": \"…\", \"requestId\": \"…\" }`. `code` is stable and documented on each operation; quote `requestId` when you email hello@trovy.ca. A 401 means fix your credentials (rotate the key); a 403 means the key is recognised and something else forbids the call.\n\n## Rate limits\n\nLimits are per key. Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`; a 429 adds `Retry-After`.\n\n## Versioning\n\nThe version is in the path. Changes within `/v1` are additive: new endpoints, new optional fields, new error codes. Anything that would break a working integration ships as `/v2`."
+    "description": "The Trovy loyalty engine, for a partner's own backend: instant rewards and gift cards behind your own checkout. Trovy handles no payments.\n\n## Authentication\n\nEvery request carries a secret key: `Authorization: Bearer trv_live_…` against production, `Authorization: Bearer trv_test_…` against the sandbox. Keys belong on your server only — never in a mobile app or a web page. Your team creates, rotates and revokes them in the Trovy dashboard.\n\n## Sandbox\n\nYour team makes its own sandbox in the Trovy dashboard (Integrations → Developer API → Create sandbox): a test copy of your business, with its own test keys. `https://api.sandbox.trovy.ca` runs the same API against it. Test keys only work there, and live keys only against production. No text message ever leaves a sandbox: every response that would have sent one carries the rendered message in `sms.preview`. Its sign-up form accepts only fictional phone numbers (a US or Canadian area code, or 721, then 555-0100 to 555-0199), so a sandbox can never reach a real person.\n\n## Idempotency\n\nEvery request that changes something takes an `Idempotency-Key` header. Retrying with the same key returns the original result, so a timed-out call can never earn twice or charge a gift card twice. Reusing a key with a different body is refused.\n\n## Errors\n\nErrors are `{ \"error\": \"…\", \"code\": \"…\", \"requestId\": \"…\" }`. `code` is stable and documented on each operation; quote `requestId` when you email developers@trovy.ca. A 401 means fix your credentials (rotate the key); a 403 means the key is recognised and something else forbids the call.\n\n## Rate limits\n\nLimits are per key. Every response carries `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`; a 429 adds `Retry-After`.\n\n## Versioning\n\nThe version is in the path. Changes within `/v1` are additive: new endpoints, new optional fields, new error codes. Anything that would break a working integration ships as `/v2`."
   },
   "servers": [
     {
@@ -211,7 +211,7 @@
               "API_KEY_MISSING": "No `Authorization: Bearer <key>` header was sent.",
               "API_KEY_INVALID": "The key is malformed, unknown, or minted for the other environment.",
               "API_KEY_REVOKED": "The key was revoked. Create a new one in the dashboard.",
-              "API_KEY_DISABLED": "Trovy disabled this key. Contact hello@trovy.ca — rotating will not help.",
+              "API_KEY_DISABLED": "Trovy disabled this key. Contact developers@trovy.ca — rotating will not help.",
               "API_KEY_WRONG_TYPE": "A Shopify or publishable key was sent where a secret key is required.",
               "API_NOT_ENABLED": "The Developer API is not enabled for this business.",
               "VALIDATION_ERROR": "The request failed validation; `details` lists the issues.",
@@ -233,7 +233,7 @@
               "NOT_OLDEST_REWARD": "Rewards are redeemed oldest first; `details.oldestRewardId` is the one to apply.",
               "MINIMUM_ORDER_NOT_MET": "The order does not reach the reward's minimum; `details.minimumOrderCents`.",
               "ORDER_NOT_FOUND": "No order with this `orderId` was recorded through the API for your business.",
-              "ORDER_AMBIGUOUS": "More than one purchase is recorded under this `orderId`. Email hello@trovy.ca.",
+              "ORDER_AMBIGUOUS": "More than one purchase is recorded under this `orderId`. Email developers@trovy.ca.",
               "NOT_REFUNDABLE": "This order cannot be refunded.",
               "REFUND_EXCEEDS_REMAINING": "`amountCents` is more than what is left to refund; `details.remainingRefundableCents`.",
               "ALREADY_FULLY_REFUNDED": "The order has already been fully refunded.",
@@ -248,12 +248,12 @@
               "NOT_REVERSIBLE": "This debit cannot be put back: the card is voided, or the row is itself a reversal.",
               "EXCEEDS_REVERSIBLE": "More than this debit can still put back; `details.reversibleCents` is the remainder.",
               "RATE_LIMITED": "Too many requests; wait `Retry-After` seconds.",
-              "INTERNAL_ERROR": "Something failed on our side. Quote `requestId` when you email hello@trovy.ca."
+              "INTERNAL_ERROR": "Something failed on our side. Quote `requestId` when you email developers@trovy.ca."
             }
           },
           "requestId": {
             "type": "string",
-            "description": "Identifies this request in Trovy's logs. Quote it when you email hello@trovy.ca."
+            "description": "Identifies this request in Trovy's logs. Quote it when you email developers@trovy.ca."
           },
           "details": {
             "description": "The failing fields on a 400; on several 409s the value to act on (see each code)."
@@ -499,7 +499,7 @@
           "transactionId": {
             "type": "string",
             "example": "clx1tx000001",
-            "description": "Trovy's id for this order. Quote it when you email hello@trovy.ca."
+            "description": "Trovy's id for this order. Quote it when you email developers@trovy.ca."
           },
           "sms": {
             "$ref": "#/components/schemas/Sms"
@@ -629,7 +629,7 @@
           "transactionId": {
             "type": "string",
             "example": "clx1tx000001",
-            "description": "Trovy's id for this order. Quote it when you email hello@trovy.ca."
+            "description": "Trovy's id for this order. Quote it when you email developers@trovy.ca."
           },
           "sms": {
             "$ref": "#/components/schemas/Sms"

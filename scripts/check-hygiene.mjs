@@ -56,12 +56,16 @@ const RULES = [
     allow: (match) => /\/(runner|node|user|you|me)$/i.test(match[0]),
   },
   {
-    name: "an address other than hello@trovy.ca, or a personal one",
+    name: "an address other than developers@trovy.ca, or a personal one",
     pattern: /\b[A-Za-z0-9._%+-]+@((?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,})\b/g,
-    allow: (match) => {
+    allow: (match, file) => {
       const domain = match[1].toLowerCase();
-      // One Trovy mailbox is read. Any other would send a partner somewhere nobody answers.
-      if (domain === "trovy.ca") return match[0].toLowerCase() === "hello@trovy.ca";
+      const address = match[0].toLowerCase();
+      // Developer support is one inbox; any other address sends a developer somewhere
+      // else. The changelog keeps the address that earlier releases gave out.
+      if (domain === "trovy.ca") {
+        return address === "developers@trovy.ca" || (file === "CHANGELOG.md" && address === "hello@trovy.ca");
+      }
       return domain === "users.noreply.github.com" || TEST_DOMAINS.test(domain);
     },
     // Integrity hashes and peer-dependency notation read like addresses to a regex.
@@ -122,7 +126,7 @@ for (const path of files) {
     lines.forEach((line, index) => {
       rule.pattern.lastIndex = 0;
       for (let match; (match = rule.pattern.exec(line)); ) {
-        if (rule.allow?.(match)) continue;
+        if (rule.allow?.(match, file)) continue;
         // This runs in a public CI log. It says where a secret is, not what it is.
         const shown = rule.secret ? `${match[0].slice(0, 10)}…` : match[0].slice(0, 60);
         findings.push(`${file}:${index + 1}  ${rule.name}: ${shown}`);
