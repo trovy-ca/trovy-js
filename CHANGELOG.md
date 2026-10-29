@@ -10,11 +10,33 @@ are not covered by semver.
 
 ## 0.1.2
 
+### Added
+
+- A message result (`sms` on an earn, a redeem, a refund or a gift card) says how the
+  message went, or would have, in `route`: `"sms"` for a text or `"whatsapp"`. A US or
+  Canadian number gets a text unless its owner chose WhatsApp; any other number gets
+  WhatsApp. `route` is absent when the status is `not_sent`. In a sandbox,
+  `sms.preview` is the message as the customer would read it, on either route.
+- `business.get()` answers `products`: whether instant rewards and gift cards are
+  switched on for your business.
+- The error code `REWARDS_NOT_ENABLED`: instant rewards is switched off for your
+  business, so an order earns nothing. Rewards customers already hold stay redeemable.
+- Gift cards (`@experimental`): issuing a card can ask for a one-time link where the
+  buyer designs it (`personalization`, answered as `personalizeUrl`), with the error
+  code `RETURN_URL_NOT_ALLOWED` when its return URL is not on an origin your
+  publishable keys allow. A card says whether it has its design (`personalized`), and
+  the issue result carries its `sms`.
+
 ### Changed
 
+- `rewards.list()` holds the rewards your API can redeem: those earned under a program
+  that runs on the Developer API. A reward from a program that runs only elsewhere,
+  for example only at the till, is not in it.
+- A sandbox whose business takes members from outside the US and Canada also accepts
+  fictional numbers behind other `+1` area codes, such as `+1 721 555 0100`.
 - Questions about the SDK or the API now go to developers@trovy.ca, Trovy's developer
   support inbox. `TrovyError.requestId`'s hover text, the README, SECURITY.md and the
-  generated types' descriptions give that address. No code or type changed.
+  generated types' descriptions give that address.
 
 ## 0.1.1
 

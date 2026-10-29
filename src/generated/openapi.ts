@@ -93,7 +93,7 @@ export interface paths {
         };
         /**
          * A customer's rewards waiting to be redeemed
-         * @description The customer's rewards at your business: usable ones first, then soonest-expiring. Normally zero or one: a customer redeems a usable reward before they earn again, and a new qualifying order grows the reward they already have. Call it when the customer reaches checkout: apply a reward with `POST /v1/redeem` when it is `usable` and the order reaches its minimum; otherwise record the order with `POST /v1/earn`, or nothing while a usable reward is waiting.
+         * @description The customer's rewards your API can redeem: those earned under a program that runs on the Developer API, usable ones first, then soonest-expiring. A reward from a program that runs only somewhere else, for example only at the till, is not listed and cannot be redeemed here. Normally zero or one: a customer redeems a usable reward before they earn again, and a new qualifying order grows the reward they already have. Call it when the customer reaches checkout: apply a reward with `POST /v1/redeem` when it is `usable` and the order reaches its minimum; otherwise record the order with `POST /v1/earn`, or nothing while a usable reward is waiting.
          */
         get: operations["listCustomerRewards"];
         put?: never;
@@ -175,7 +175,7 @@ export interface paths {
         put?: never;
         /**
          * Issue a gift card you have been paid for
-         * @description Call it once the buyer has paid you. The card comes back active and spendable immediately — you hold the money, so there is nothing for Trovy to wait for. The buyer must be a member of your business, so the card has an owner on record. Your business has a daily issuance limit; going past it answers 409 `DAILY_CAP_REACHED` with what is left. Two issuances at your business at the same instant do not queue: one may answer 429 `RATE_LIMITED` with `Retry-After`, having issued nothing — send it again with the same `Idempotency-Key`. Retrying with the same `Idempotency-Key` returns the same card.
+         * @description Call it once the buyer has paid you. The card comes back active and spendable immediately — you hold the money, so there is nothing for Trovy to wait for. The buyer must be a member of your business, so the card has an owner on record. Ask for `personalization` to let the buyer design the card on Trovy afterwards: the answer carries a one-time `personalizeUrl`. Your business has a daily issuance limit; going past it answers 409 `DAILY_CAP_REACHED` with what is left. Two issuances at your business at the same instant do not queue: one may answer 429 `RATE_LIMITED` with `Retry-After`, having issued nothing — send it again with the same `Idempotency-Key`. Retrying with the same `Idempotency-Key` returns the same card, and the first call's `personalization` stands.
          */
         post: operations["createGiftCard"];
         delete?: never;
@@ -292,6 +292,13 @@ export interface components {
              * @example USD
              */
             currency: string;
+            /** @description Which products your business has switched on. With instant rewards off, `POST /v1/earn` answers `REWARDS_NOT_ENABLED`; with gift cards off, issuing a card answers `GIFT_CARDS_NOT_ENABLED`. Rewards and gift cards customers already hold stay redeemable either way. */
+            products: {
+                /** @example true */
+                instantRewards: boolean;
+                /** @example false */
+                giftCards: boolean;
+            };
         };
         /** @description The active rewards program, or `null` when none is linked to the Developer API yet. */
         Program: {
@@ -332,7 +339,7 @@ export interface components {
              * @example API_KEY_INVALID
              * @enum {string}
              */
-            code: "API_KEY_MISSING" | "API_KEY_INVALID" | "API_KEY_REVOKED" | "API_KEY_DISABLED" | "API_KEY_WRONG_TYPE" | "API_NOT_ENABLED" | "VALIDATION_ERROR" | "NOT_FOUND" | "LINK_TOKEN_INVALID" | "CUSTOMER_NOT_FOUND" | "IDEMPOTENCY_MISMATCH" | "DUPLICATE_ORDER" | "ACTIVE_REWARD_EXISTS" | "NO_ACTIVE_PROGRAM" | "FIRST_ORDER_ONLY" | "STORE_NOT_FOUND" | "REWARD_NOT_FOUND" | "REWARD_ALREADY_REDEEMED" | "REWARD_EXPIRED" | "REWARD_NOT_YET_USABLE" | "REWARD_VOIDED" | "REWARD_CHANGED" | "NOT_OLDEST_REWARD" | "MINIMUM_ORDER_NOT_MET" | "ORDER_NOT_FOUND" | "ORDER_AMBIGUOUS" | "NOT_REFUNDABLE" | "REFUND_EXCEEDS_REMAINING" | "ALREADY_FULLY_REFUNDED" | "GIFT_CARDS_NOT_ENABLED" | "AMOUNT_OUT_OF_RANGE" | "DAILY_CAP_REACHED" | "GIFT_CARD_NOT_FOUND" | "GIFT_CARD_NOT_REDEEMABLE" | "INSUFFICIENT_BALANCE" | "NOT_YOUR_GIFT_CARD" | "REDEMPTION_NOT_FOUND" | "NOT_REVERSIBLE" | "EXCEEDS_REVERSIBLE" | "RATE_LIMITED" | "INTERNAL_ERROR";
+            code: "API_KEY_MISSING" | "API_KEY_INVALID" | "API_KEY_REVOKED" | "API_KEY_DISABLED" | "API_KEY_WRONG_TYPE" | "API_NOT_ENABLED" | "VALIDATION_ERROR" | "NOT_FOUND" | "LINK_TOKEN_INVALID" | "CUSTOMER_NOT_FOUND" | "IDEMPOTENCY_MISMATCH" | "DUPLICATE_ORDER" | "ACTIVE_REWARD_EXISTS" | "NO_ACTIVE_PROGRAM" | "FIRST_ORDER_ONLY" | "STORE_NOT_FOUND" | "REWARD_NOT_FOUND" | "REWARD_ALREADY_REDEEMED" | "REWARD_EXPIRED" | "REWARD_NOT_YET_USABLE" | "REWARD_VOIDED" | "REWARD_CHANGED" | "NOT_OLDEST_REWARD" | "MINIMUM_ORDER_NOT_MET" | "ORDER_NOT_FOUND" | "ORDER_AMBIGUOUS" | "NOT_REFUNDABLE" | "REFUND_EXCEEDS_REMAINING" | "ALREADY_FULLY_REFUNDED" | "REWARDS_NOT_ENABLED" | "GIFT_CARDS_NOT_ENABLED" | "AMOUNT_OUT_OF_RANGE" | "RETURN_URL_NOT_ALLOWED" | "DAILY_CAP_REACHED" | "GIFT_CARD_NOT_FOUND" | "GIFT_CARD_NOT_REDEEMABLE" | "INSUFFICIENT_BALANCE" | "NOT_YOUR_GIFT_CARD" | "REDEMPTION_NOT_FOUND" | "NOT_REVERSIBLE" | "EXCEEDS_REVERSIBLE" | "RATE_LIMITED" | "INTERNAL_ERROR";
             /** @description Identifies this request in Trovy's logs. Quote it when you email developers@trovy.ca. */
             requestId?: string;
             /** @description The failing fields on a 400; on several 409s the value to act on (see each code). */
@@ -457,7 +464,12 @@ export interface components {
              * @enum {string}
              */
             status: "sent" | "preview" | "failed" | "not_sent";
-            /** @description Sandbox only: the full text the customer would have received. */
+            /**
+             * @description How the message went, or would have: `sms` (a text) or `whatsapp`. A US or Canadian number gets a text unless its owner chose WhatsApp; any other number gets WhatsApp. Absent with `not_sent`.
+             * @enum {string}
+             */
+            route?: "sms" | "whatsapp";
+            /** @description Sandbox only: the full message the customer would have received. */
             preview?: string | null;
         };
         EarnRequest: {
@@ -601,6 +613,12 @@ export interface components {
             /** @description True when this is the stored result of an earlier call with the same `Idempotency-Key`; nothing was recorded twice. */
             replayed: boolean;
             card: components["schemas"]["GiftCard"];
+            /**
+             * @description The one-time link for the buyer to design the card, when you asked for one. It stops working once the design is saved, or the card is voided or spent out. A retry of the same issuance answers it again while it is live. `null` when you did not ask, or the link has been used.
+             * @example https://www.trovy.ca/gift-cards/p/9f2c…
+             */
+            personalizeUrl: string | null;
+            sms: components["schemas"]["Sms"];
         };
         GiftCard: {
             /**
@@ -632,6 +650,8 @@ export interface components {
             externalRef: string | null;
             /** @example Ana */
             recipientName: string | null;
+            /** @description Whether the card has its design. A card you issue has none until its buyer designs it through `personalizeUrl`. */
+            personalized: boolean;
             /** @example 2026-09-12T14:00:00.000Z */
             createdAt: string;
         };
@@ -655,6 +675,21 @@ export interface components {
             recipientName?: string;
             /** @description A note from the buyer to the recipient. */
             message?: string;
+            /** @description Let the buyer design the card on Trovy after paying you: a one-time link, answered as `personalizeUrl`. Leave it out for a card without a design. */
+            personalization?: {
+                /**
+                 * @description `redirect`: send your buyer to `personalizeUrl` yourself, right after checkout. `sms`: Trovy texts the buyer the link (and the card's share link) instead.
+                 * @default redirect
+                 * @enum {string}
+                 */
+                deliver: "redirect" | "sms";
+                /**
+                 * Format: uri
+                 * @description Where the buyer comes back to after designing: an origin your publishable keys allow. Trovy adds `giftCardId` and `personalization` (`completed` or `skipped`) to its query.
+                 * @example https://shop.example.com/order/10233
+                 */
+                returnUrl?: string;
+            };
         };
         LookupGiftCardResponse: {
             card: components["schemas"]["GiftCard"];

@@ -28,7 +28,7 @@ and is safe in a page: the form refuses anything else.
 Start in a sandbox. In your Trovy dashboard open Integrations → Developer API and
 press **Create sandbox**; the sandbox's own Developer API page is where you create
 a test secret key and a test publishable key. Nothing needs switching on first. A
-test key reaches the sandbox, sends no real texts, and accepts only the fictional
+test key reaches the sandbox, sends no real messages, and accepts only the fictional
 numbers listed in the [docs](https://developers.trovy.ca/guides/sandbox). Live
 keys come later, from your real business, once its owner switches the Developer API
 on there.
@@ -470,11 +470,11 @@ conversion.
 
 | Method | Operation |
 | --- | --- |
-| `business.get()` | The business behind the key, its program and its currency |
+| `business.get()` | The business behind the key, its program, its currency and which products are on |
 | `business.listStores()` | Active locations |
 | `customers.link(body)` | Exchange a link token for your customer id |
 | `customers.lookup(body)` | Whether a phone number is already linked to you |
-| `rewards.list(customerId)` | A customer's live rewards |
+| `rewards.list(customerId)` | A customer's live rewards that your API can redeem |
 | `rewards.earn(body, opts)` | Record a paid order and earn |
 | `rewards.redeem(body, opts)` | Apply a reward to an order |
 | `rewards.refund(body, opts)` | Reverse an order and claw the reward back |
